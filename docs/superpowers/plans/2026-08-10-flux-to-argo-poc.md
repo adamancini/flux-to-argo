@@ -2,20 +2,21 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a scripted, reproducible PoC that migrates a classic 3-tier guestbook app from a Flux `HelmRelease` (in a local kind cluster) to an Akuity-hosted ArgoCD `Application`, with zero downtime proven by a continuous verification probe.
+**Goal:** Build a scripted, reproducible PoC that migrates a classic 3-tier guestbook app from a Flux `HelmRelease` (in a local k3d cluster) to an Akuity-hosted ArgoCD `Application`, with zero downtime proven by a continuous verification probe.
 
-**Architecture:** One kind cluster runs Flux and the guestbook workload; a dedicated Akuity Platform (AKP) instance, provisioned via Terraform, hosts the ArgoCD control plane and registers the kind cluster as a workload cluster. Both controllers pull the same Helm chart from `adamancini/flux-to-argo` on GitHub. A `Taskfile.yml` drives every step; numbered scripts under `scripts/` do the work; `README.md` narrates each step for a human running it live.
+**Architecture:** One k3d cluster runs Flux and the guestbook workload; a dedicated Akuity Platform (AKP) instance, provisioned via Terraform, hosts the ArgoCD control plane and registers the k3d cluster as a workload cluster. Both controllers pull the same Helm chart from `adamancini/flux-to-argo` on GitHub. A `Taskfile.yml` drives every step; numbered scripts under `scripts/` do the work; `README.md` narrates each step for a human running it live.
 
-**Tech Stack:** kind, Flux (`flux` CLI, `source-controller`/`helm-controller`), Helm 3, Terraform (`akuity/akp` provider), `argocd` CLI, `akuity` platform (Akuity-hosted ArgoCD), `gh` CLI, go-task (`Taskfile.yml`), bash, `jq`, `curl`.
+**Tech Stack:** k3d, Flux (`flux` CLI, `source-controller`/`helm-controller`), Helm 3, Terraform (`akuity/akp` provider), `argocd` CLI, `akuity` platform (Akuity-hosted ArgoCD), `gh` CLI, go-task (`Taskfile.yml`), bash, `jq`, `curl`.
 
 ## Global Constraints
 
 - Spec of record: `docs/superpowers/specs/2026-08-10-flux-to-argo-poc-design.md` — every task below implements one part of it; consult it for the "why" behind any step.
-- Required local tools, assumed already installed and authenticated: `kind`, `kubectl`, `helm` (v3), `flux` CLI, `terraform` (>= 1.5), `argocd` CLI, `gh` CLI (authenticated), `jq`, `curl`. Installing these is out of scope.
+- Required local tools, assumed already installed and authenticated: `k3d`, `kubectl`, `helm` (v3), `flux` CLI, `terraform` (>= 1.5), `argocd` CLI, `gh` CLI (authenticated), `jq`, `curl`, `task` (go-task). Installing these is out of scope.
 - `AKUITY_API_KEY_ID` / `AKUITY_API_KEY_SECRET` env vars are assumed already set before any `terraform apply` in this plan runs, per `akp-infra`'s convention. Setting up that auth is out of scope.
 - The guestbook images are assumed publicly pullable; no private registry auth is set up.
 - **Real-world actions requiring explicit confirmation at execution time** (not to be run unattended by an agent without checking with the user first): `terraform apply`/`destroy` against the live Akuity org (Task 4, Task 9 — creates/destroys a real billable AKP instance), and `gh repo create` (Task 5 — creates a real public GitHub repo; already approved by the user as `adamancini/flux-to-argo`, public, during design, but only run it once). `terraform validate`/`plan` are safe to run freely.
-- Namespaces: Flux objects (`GitRepository`, `HelmRelease`) live in `flux-system`; the guestbook workload lives in `guestbook-demo`; the kind cluster is named `flux-to-argo`; the AKP-registered cluster name is also `flux-to-argo`.
+- Namespaces: Flux objects (`GitRepository`, `HelmRelease`) live in `flux-system`; the guestbook workload lives in `guestbook-demo`; the k3d cluster is named `flux-to-argo`; the AKP-registered cluster name is also `flux-to-argo`.
+- k3d (not kind) is used for the local cluster: kind cannot start a control-plane pod on this development machine's Docker Desktop install (nested containerd/runc `seccomp is not supported`, reproduced across Kubernetes versions) — see the spec's Architecture section.
 
 ---
 
@@ -36,12 +37,12 @@ version: '3'
 
 tasks:
   cluster:up:
-    desc: Create the kind cluster and install Flux
+    desc: Create the k3d cluster and install Flux
     cmds:
       - ./scripts/cluster-up.sh
 
   akp:up:
-    desc: Provision a dedicated Akuity Platform instance and register the kind cluster
+    desc: Provision a dedicated Akuity Platform instance and register the k3d cluster
     cmds:
       - ./scripts/akp-up.sh
 
@@ -71,7 +72,7 @@ tasks:
       - ./scripts/cleanup-flux.sh
 
   down:
-    desc: Tear down the kind cluster and destroy the AKP instance
+    desc: Tear down the k3d cluster and destroy the AKP instance
     cmds:
       - ./scripts/teardown.sh
 ```
@@ -102,7 +103,7 @@ for the full rationale.
 
 ## Prerequisites
 
-- `kind`, `kubectl`, `helm` (v3), `flux` CLI, `terraform` (>= 1.5), `argocd`
+- `k3d`, `kubectl`, `helm` (v3), `flux` CLI, `terraform` (>= 1.5), `argocd`
   CLI, `gh` CLI (authenticated), `jq`, `curl`, `task` (go-task)
 - `AKUITY_API_KEY_ID` / `AKUITY_API_KEY_SECRET` set in your environment
 
@@ -391,25 +392,26 @@ git commit -m "Add guestbook Helm chart (frontend + redis-leader + redis-followe
 
 ---
 
-### Task 3: kind cluster + Flux install
+### Task 3: k3d cluster + Flux install
 
 **Files:**
-- Create: `cluster/kind-config.yaml`
+- Create: `cluster/k3d-config.yaml`
 - Create: `scripts/cluster-up.sh`
 - Modify: `README.md` (fill in "1. Cluster + Flux" section)
 
 **Interfaces:**
 - Consumes: nothing (chart from Task 2 isn't needed until Task 5).
-- Produces: a running kind cluster named `flux-to-argo` (kubeconfig context `kind-flux-to-argo`), with Flux's `source-controller` and `helm-controller` `Available` in the `flux-system` namespace. Later tasks (4, 5, 7, 8, 9) assume this cluster and context exist.
+- Produces: a running k3d cluster named `flux-to-argo` (kubeconfig context `k3d-flux-to-argo`), with Flux's `source-controller` and `helm-controller` `Available` in the `flux-system` namespace. Later tasks (4, 5, 7, 8, 9) assume this cluster and context exist.
 
-- [ ] **Step 1: Create `cluster/kind-config.yaml`**
+- [ ] **Step 1: Create `cluster/k3d-config.yaml`**
 
 ```yaml
-kind: Cluster
-apiVersion: kind.x-k8s.io/v1alpha4
-name: flux-to-argo
-nodes:
-  - role: control-plane
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: flux-to-argo
+servers: 1
+agents: 0
 ```
 
 - [ ] **Step 2: Create `scripts/cluster-up.sh`**
@@ -420,13 +422,13 @@ set -euo pipefail
 
 CLUSTER_NAME="flux-to-argo"
 
-if kind get clusters | grep -qx "${CLUSTER_NAME}"; then
-  echo "kind cluster '${CLUSTER_NAME}' already exists, skipping create"
+if k3d cluster list "${CLUSTER_NAME}" >/dev/null 2>&1; then
+  echo "k3d cluster '${CLUSTER_NAME}' already exists, skipping create"
 else
-  kind create cluster --config cluster/kind-config.yaml
+  k3d cluster create --config cluster/k3d-config.yaml
 fi
 
-kubectl config use-context "kind-${CLUSTER_NAME}"
+kubectl config use-context "k3d-${CLUSTER_NAME}"
 
 flux install
 
@@ -455,7 +457,7 @@ Expected: one node in `Ready` status; both deployments show `1/1` under `AVAILAB
 Replace `<!-- filled in by Task 3 -->` under `### 1. Cluster + Flux` with:
 
 ```markdown
-Create the kind cluster and install Flux's source-controller and
+Create the k3d cluster and install Flux's source-controller and
 helm-controller:
 
     task cluster:up
@@ -467,8 +469,8 @@ re-applies the Flux manifests.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add cluster/kind-config.yaml scripts/cluster-up.sh README.md
-git commit -m "Add kind cluster config and cluster:up script"
+git add cluster/k3d-config.yaml scripts/cluster-up.sh README.md
+git commit -m "Add k3d cluster config and cluster:up script"
 ```
 
 ---
@@ -487,8 +489,8 @@ git commit -m "Add kind cluster config and cluster:up script"
 - Modify: `README.md` (fill in "2. Provision the Akuity Platform instance" section)
 
 **Interfaces:**
-- Consumes: the kind cluster + `kind-flux-to-argo` kubeconfig context from Task 3.
-- Produces: a new AKP instance (name `flux-to-argo-poc`) and a registered cluster named `flux-to-argo` on that instance, with a healthy Akuity Agent running in the kind cluster's `akuity` namespace. Task 7's `migrate.sh` targets `destination.name: flux-to-argo` on this instance; Task 9's `teardown.sh` destroys both stacks.
+- Consumes: the k3d cluster + `k3d-flux-to-argo` kubeconfig context from Task 3.
+- Produces: a new AKP instance (name `flux-to-argo-poc`) and a registered cluster named `flux-to-argo` on that instance, with a healthy Akuity Agent running in the k3d cluster's `akuity` namespace. Task 7's `migrate.sh` targets `destination.name: flux-to-argo` on this instance; Task 9's `teardown.sh` destroys both stacks.
 
 - [ ] **Step 1: Create `terraform/01-argocd/variables.tf`**
 
@@ -588,7 +590,7 @@ variable "argocd_instance_name" {
 
 variable "cluster_name" {
   type        = string
-  description = "Name to register the kind cluster under on the AKP instance"
+  description = "Name to register the k3d cluster under on the AKP instance"
   default     = "flux-to-argo"
 }
 
@@ -599,7 +601,7 @@ variable "kubeconfig_path" {
 
 variable "kubeconfig_context" {
   type    = string
-  default = "kind-flux-to-argo"
+  default = "k3d-flux-to-argo"
 }
 ```
 
@@ -636,14 +638,14 @@ data "akp_instance" "argocd" {
   name = var.argocd_instance_name
 }
 
-resource "akp_cluster" "kind" {
+resource "akp_cluster" "k3d" {
   instance_id = data.akp_instance.argocd.id
   name        = var.cluster_name
   namespace   = "akuity"
 
   spec = {
     namespace_scoped = false
-    description      = "Local kind cluster for the flux-to-argo migration PoC"
+    description      = "Local k3d cluster for the flux-to-argo migration PoC"
 
     data = {
       size    = "small"
@@ -719,7 +721,7 @@ each directory, fill in your `org_name` (and an `admin_password` for
     task akp:up
 
 This provisions a dedicated AKP instance (`flux-to-argo-poc`) and registers
-the kind cluster on it as `flux-to-argo`. It's isolated from any other AKP
+the k3d cluster on it as `flux-to-argo`. It's isolated from any other AKP
 instance you may already have — this PoC never touches shared instances.
 ```
 
@@ -1202,8 +1204,8 @@ git commit -m "Add Flux cleanup script"
 - Modify: `README.md` (fill in "7. Tear down" section)
 
 **Interfaces:**
-- Consumes: the kind cluster from Task 3, the Terraform-managed AKP instance/cluster registration from Task 4.
-- Produces: no kind cluster, no AKP instance, no `.verify/` directory. Terminal task — nothing downstream depends on it.
+- Consumes: the k3d cluster from Task 3, the Terraform-managed AKP instance/cluster registration from Task 4.
+- Produces: no k3d cluster, no AKP instance, no `.verify/` directory. Terminal task — nothing downstream depends on it.
 
 - [ ] **Step 1: Create `scripts/teardown.sh`**
 
@@ -1215,8 +1217,8 @@ echo "==> Destroying Terraform-managed AKP resources"
 terraform -chdir=terraform/03-clusters destroy -auto-approve
 terraform -chdir=terraform/01-argocd destroy -auto-approve
 
-echo "==> Deleting kind cluster"
-kind delete cluster --name flux-to-argo
+echo "==> Deleting k3d cluster"
+k3d cluster delete flux-to-argo
 
 rm -rf .verify
 ```
@@ -1234,16 +1236,16 @@ Confirm with the user before running; this destroys the real AKP instance create
 Run:
 ```bash
 ./scripts/teardown.sh
-kind get clusters
+k3d cluster list
 ```
-Expected: `terraform destroy` completes with `Destroy complete!` for both stacks; `kind get clusters` no longer lists `flux-to-argo`; `.verify/` no longer exists.
+Expected: `terraform destroy` completes with `Destroy complete!` for both stacks; `k3d cluster list` no longer lists `flux-to-argo`; `.verify/` no longer exists.
 
 - [ ] **Step 4: Fill in the README's "7. Tear down" section**
 
 Replace `<!-- filled in by Task 9 -->` under `### 7. Tear down` with:
 
 ```markdown
-Destroy the AKP instance and delete the kind cluster:
+Destroy the AKP instance and delete the k3d cluster:
 
     task down
 ```
