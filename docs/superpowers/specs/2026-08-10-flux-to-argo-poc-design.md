@@ -18,8 +18,8 @@ Demonstrate, on a small self-contained example, how a Kubernetes service managed
 One disposable **kind** cluster plus one dedicated **Akuity Platform (AKP)** instance:
 
 - **kind cluster** (`flux-to-argo`) — runs Flux (source-controller, helm-controller) in `flux-system`, and the guestbook workload in `guestbook-demo`. No in-cluster ArgoCD.
-- **AKP instance** — a new instance provisioned just for this PoC via the `akuity` CLI, isolated from any existing shared AKP instance/demo environment. Its hosted ArgoCD control plane (repo-server, application-controller, API) runs in Akuity's cloud, not in the kind cluster.
-- **Cluster registration** — the kind cluster is registered to the new AKP instance as a workload cluster via `akuity cluster add`, which generates agent-install manifests applied to kind so the hosted control plane can reach it.
+- **AKP instance** — a new instance provisioned just for this PoC via Terraform (the `akuity/akp` provider), isolated from any existing shared AKP instance/demo environment. Its hosted ArgoCD control plane (repo-server, application-controller, API) runs in Akuity's cloud, not in the kind cluster. The `akuity` CLI cannot create instances or register clusters — it assumes both already exist and is used only for ongoing instance configuration — so Terraform is the only viable provisioning path, matching `akp-infra`'s pattern.
+- **Cluster registration** — the kind cluster is registered to the new AKP instance as a workload cluster via Terraform's `akp_cluster` resource, passing the kind cluster's `kube_config` so the provider installs the Akuity Agent directly (no manual manifest-generation step needed).
 - **GitHub repo** — `adamancini/flux-to-argo` (this repo), public. Both Flux's `GitRepository`/`HelmRelease` and the AKP-hosted `Application` pull the same `chart/guestbook/` from this repo over HTTPS. This matters specifically because the AKP repo-server runs off-cluster in Akuity's cloud — it cannot reach anything sitting only inside kind's local Docker network (e.g., a local OCI registry), so the chart source must be reachable independent of the kind cluster's network.
 
 ## The app
@@ -35,7 +35,7 @@ No PersistentVolumes. This is deliberate: with no persistence, an accidental pod
 ## Migration flow
 
 1. **`task cluster:up`** — create the kind cluster, `flux install` (plain manifest install, no bootstrap-to-self-repo).
-2. **`task akp:up`** — `akuity` CLI creates the new dedicated AKP instance and registers the kind cluster as a workload cluster.
+2. **`task akp:up`** — Terraform creates the new dedicated AKP instance (`terraform/01-argocd`) and registers the kind cluster as a workload cluster (`terraform/03-clusters`).
 3. **Push to GitHub** — chart and Flux/ArgoCD manifests pushed to `adamancini/flux-to-argo`.
 4. **`task deploy:flux`** — apply Flux `GitRepository` + `HelmRelease` for the guestbook chart. Flux's helm-controller installs the 3-tier app into `guestbook-demo` and owns it (including creating a real Helm release Secret, since helm-controller calls the Helm SDK directly).
 5. **`task verify:start`** — start a background verification probe (see Verification below) that runs continuously through the rest of the flow.
@@ -87,9 +87,12 @@ flux-to-argo/
 │   │   └── guestbook-release.yaml  # HelmRelease
 │   └── argocd/
 │       └── guestbook-app.yaml      # ArgoCD Application, applied at cutover
+├── terraform/
+│   ├── 01-argocd/                  # akp_instance — the dedicated AKP instance
+│   └── 03-clusters/                # akp_cluster — registers the kind cluster + Agent
 ├── scripts/
 │   ├── cluster-up.sh
-│   ├── akp-up.sh
+│   ├── akp-up.sh                   # wraps terraform init/apply for both stacks
 │   ├── deploy-flux.sh
 │   ├── verify-start.sh
 │   ├── verify-report.sh
@@ -108,4 +111,4 @@ flux-to-argo/
 ## Out of scope for correctness (accepted assumptions)
 
 - The guestbook images (`redis`, and a small frontend) are assumed to be publicly pullable — no private registry auth is set up for this PoC.
-- `akuity` CLI is assumed to already be authenticated against an org with permission to create a new instance; auth setup itself is not scripted here.
+- Terraform's `akp` provider is assumed to already be authenticated (`AKUITY_API_KEY_ID`/`AKUITY_API_KEY_SECRET` env vars set, per `akp-infra`'s convention) against an org with permission to create a new instance; auth setup itself is not scripted here.
