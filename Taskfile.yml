@@ -1,0 +1,42 @@
+version: '3'
+
+tasks:
+  cluster:up:
+    desc: Create the kind cluster and install Flux
+    cmds:
+      - ./scripts/cluster-up.sh
+
+  akp:up:
+    desc: Provision a dedicated Akuity Platform instance and register the kind cluster
+    cmds:
+      - ./scripts/akp-up.sh
+
+  deploy:flux:
+    desc: Deploy the guestbook chart via a Flux HelmRelease
+    cmds:
+      - ./scripts/deploy-flux.sh
+
+  verify:start:
+    desc: Start the background availability/stability probe
+    cmds:
+      - ./scripts/verify-start.sh
+
+  verify:report:
+    desc: Stop the probe and print a pass/fail summary
+    cmds:
+      - ./scripts/verify-report.sh
+
+  migrate:
+    desc: Cut the guestbook over from Flux to the Akuity-hosted ArgoCD Application
+    cmds:
+      - ./scripts/migrate.sh
+
+  cleanup:flux:
+    desc: Remove the suspended Flux objects and orphaned Helm release secret
+    cmds:
+      - ./scripts/cleanup-flux.sh
+
+  down:
+    desc: Tear down the kind cluster and destroy the AKP instance
+    cmds:
+      - ./scripts/teardown.sh

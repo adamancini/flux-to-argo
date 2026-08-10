@@ -1,0 +1,7 @@
+.task/
+.verify/
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
