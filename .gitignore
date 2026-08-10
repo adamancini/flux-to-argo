@@ -1,5 +1,6 @@
 .task/
 .verify/
+.superpowers/
 *.tfstate
 *.tfstate.*
 .terraform/
