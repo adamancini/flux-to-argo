@@ -17,7 +17,13 @@ for the full rationale.
 
 ### 1. Cluster + Flux
 
-<!-- filled in by Task 3 -->
+Create the k3d cluster and install Flux's source-controller and
+helm-controller:
+
+    task cluster:up
+
+This is idempotent — running it again with the cluster already up just
+re-applies the Flux manifests.
 
 ### 2. Provision the Akuity Platform instance
 
