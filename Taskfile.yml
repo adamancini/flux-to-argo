@@ -2,12 +2,12 @@ version: '3'
 
 tasks:
   cluster:up:
-    desc: Create the kind cluster and install Flux
+    desc: Create the k3d cluster and install Flux
     cmds:
       - ./scripts/cluster-up.sh
 
   akp:up:
-    desc: Provision a dedicated Akuity Platform instance and register the kind cluster
+    desc: Provision a dedicated Akuity Platform instance and register the k3d cluster
     cmds:
       - ./scripts/akp-up.sh
 
@@ -37,6 +37,6 @@ tasks:
       - ./scripts/cleanup-flux.sh
 
   down:
-    desc: Tear down the kind cluster and destroy the AKP instance
+    desc: Tear down the k3d cluster and destroy the AKP instance
     cmds:
       - ./scripts/teardown.sh

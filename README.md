@@ -9,7 +9,7 @@ for the full rationale.
 
 ## Prerequisites
 
-- `kind`, `kubectl`, `helm` (v3), `flux` CLI, `terraform` (>= 1.5), `argocd`
+- `k3d`, `kubectl`, `helm` (v3), `flux` CLI, `terraform` (>= 1.5), `argocd`
   CLI, `gh` CLI (authenticated), `jq`, `curl`, `task` (go-task)
 - `AKUITY_API_KEY_ID` / `AKUITY_API_KEY_SECRET` set in your environment
 
