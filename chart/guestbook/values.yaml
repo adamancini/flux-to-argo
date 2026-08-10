@@ -1,0 +1,22 @@
+frontend:
+  replicaCount: 1
+  image:
+    repository: us-docker.pkg.dev/google-samples/containers/gke/guestbook
+    tag: v3
+  service:
+    port: 80
+
+redisLeader:
+  image:
+    repository: us-docker.pkg.dev/google-samples/containers/gke/redis
+    tag: v2
+  service:
+    port: 6379
+
+redisFollower:
+  replicaCount: 2
+  image:
+    repository: us-docker.pkg.dev/google-samples/containers/gke/gb-redis-follower
+    tag: v2
+  service:
+    port: 6379

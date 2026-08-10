@@ -1,0 +1,6 @@
+apiVersion: v2
+name: guestbook
+description: Classic 3-tier guestbook (frontend + redis-leader + redis-follower) for the flux-to-argo migration PoC
+type: application
+version: 0.1.0
+appVersion: "1.0"

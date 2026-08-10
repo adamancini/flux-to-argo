@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-follower
+  labels:
+    app: redis
+    role: follower
+    tier: backend
+spec:
+  replicas: {{ .Values.redisFollower.replicaCount }}
+  selector:
+    matchLabels:
+      app: redis
+      role: follower
+      tier: backend
+  template:
+    metadata:
+      labels:
+        app: redis
+        role: follower
+        tier: backend
+    spec:
+      containers:
+        - name: follower
+          image: "{{ .Values.redisFollower.image.repository }}:{{ .Values.redisFollower.image.tag }}"
+          ports:
+            - containerPort: 6379
