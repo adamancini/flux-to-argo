@@ -27,20 +27,7 @@ and Flux's other standard controllers):
 This is idempotent — running it again with the cluster already up just
 re-applies the Flux manifests.
 
-### 2. Provision the Akuity Platform instance
-
-Copy `terraform/01-argocd/terraform.tfvars.example` and
-`terraform/03-clusters/terraform.tfvars.example` to `terraform.tfvars` in
-each directory, fill in your `org_name` (and an `admin_password` for
-01-argocd), then:
-
-    task akp:up
-
-This provisions a dedicated AKP instance (`flux-to-argo-poc`) and registers
-the k3d cluster on it as `flux-to-argo`. It's isolated from any other AKP
-instance you may already have — this PoC never touches shared instances.
-
-### 3. Push to GitHub and deploy via Flux
+### 2. Push to GitHub and deploy via Flux
 
 One-time: push this repo to GitHub so Flux (and later, ArgoCD) can pull the
 chart from it.
@@ -56,6 +43,25 @@ to match.
 Then deploy the guestbook via a Flux `GitRepository` + `HelmRelease`:
 
     task deploy:flux
+
+At this point, check `kubectl get pods -n guestbook-demo` and `flux get
+helmrelease -n flux-system` — the guestbook is live and entirely
+Flux-managed. No AKP instance exists yet; that's deliberate, so you can see
+the "before" state of the migration clearly before ArgoCD enters the
+picture at all.
+
+### 3. Provision the Akuity Platform instance
+
+Copy `terraform/01-argocd/terraform.tfvars.example` and
+`terraform/03-clusters/terraform.tfvars.example` to `terraform.tfvars` in
+each directory, fill in your `org_name` (and an `admin_password` for
+01-argocd), then:
+
+    task akp:up
+
+This provisions a dedicated AKP instance (`flux-to-argo-poc`) and registers
+the k3d cluster on it as `flux-to-argo`. It's isolated from any other AKP
+instance you may already have — this PoC never touches shared instances.
 
 ### 4. Start the verification probe
 

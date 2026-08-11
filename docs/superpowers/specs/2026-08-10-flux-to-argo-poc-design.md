@@ -35,9 +35,9 @@ No PersistentVolumes. This is deliberate: with no persistence, an accidental pod
 ## Migration flow
 
 1. **`task cluster:up`** — create the k3d cluster, `flux install` (plain manifest install, no bootstrap-to-self-repo).
-2. **`task akp:up`** — Terraform creates the new dedicated AKP instance (`terraform/01-argocd`) and registers the k3d cluster as a workload cluster (`terraform/03-clusters`).
-3. **Push to GitHub** — chart and Flux/ArgoCD manifests pushed to `adamancini/flux-to-argo`.
-4. **`task deploy:flux`** — apply Flux `GitRepository` + `HelmRelease` for the guestbook chart. Flux's helm-controller installs the 3-tier app into `guestbook-demo` and owns it (including creating a real Helm release Secret, since helm-controller calls the Helm SDK directly).
+2. **Push to GitHub** — chart and Flux/ArgoCD manifests pushed to `adamancini/flux-to-argo` (the ArgoCD `Application` manifest goes along for the ride here too, but nothing applies it yet).
+3. **`task deploy:flux`** — apply Flux `GitRepository` + `HelmRelease` for the guestbook chart. Flux's helm-controller installs the 3-tier app into `guestbook-demo` and owns it (including creating a real Helm release Secret, since helm-controller calls the Helm SDK directly). At this point the guestbook is live and visibly Flux-managed only — no AKP instance exists yet, deliberately, so the "before" state of the migration is unambiguous.
+4. **`task akp:up`** — Terraform creates the new dedicated AKP instance (`terraform/01-argocd`) and registers the k3d cluster as a workload cluster (`terraform/03-clusters`).
 5. **`task verify:start`** — start a background verification probe (see Verification below) that runs continuously through the rest of the flow.
 6. **`task migrate`** — the cutover, as one scripted sequence:
    a. Create the AKP `Application` from the manifest at `cluster/argocd/guestbook-app.yaml` (same chart/values/namespace as the Flux `HelmRelease`, sync policy **manual**, `Prune=false`), applied against the AKP instance via the `akuity`/`argocd` CLI.
