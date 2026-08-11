@@ -12,7 +12,7 @@ variable "argocd_instance_name" {
 variable "argocd_version" {
   type        = string
   description = "Argo CD version to run on the instance"
-  default     = "v2.13.2"
+  default     = "v3.4.6-ak.92"
 }
 
 variable "admin_password" {
