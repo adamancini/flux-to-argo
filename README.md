@@ -52,7 +52,16 @@ Then deploy the guestbook via a Flux `GitRepository` + `HelmRelease`:
 
 ### 4. Start the verification probe
 
-<!-- filled in by Task 6 -->
+Before migrating, start the background probe — it curls the frontend once a
+second, snapshots pod restart counts and identities, and writes a canary
+guestbook entry to later confirm redis-leader was never recreated:
+
+    task verify:start
+
+Leave it running through the migration step. Stop it and see the results
+with:
+
+    task verify:report
 
 ### 5. Migrate to ArgoCD
 
