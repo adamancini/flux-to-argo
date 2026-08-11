@@ -104,11 +104,18 @@ that's the point in the walkthrough where those results are meant to appear
 **Rollback**, at any point before "Cutover complete" prints:
 
     flux resume helmrelease guestbook -n flux-system
-    argocd app delete guestbook
+    argocd app delete guestbook --cascade=false
 
-(Run as two commands, not copy-pasted as one line with `&&` between two
-inline-code spans — that's easy to mis-paste with stray backticks if you're
-reading raw markdown instead of a rendered view.)
+`--cascade=false` is not optional here: `argocd app delete` defaults to
+`--cascade=true`, which deletes every resource the Application tracks
+(frontend/redis-leader/redis-follower Deployments and Services) along with
+the Application object itself — taking down the live guestbook instead of
+just removing ArgoCD's bookkeeping and handing control back to Flux. If you
+forget the flag and the workload disappears, `flux reconcile helmrelease
+guestbook -n flux-system --force` reinstalls it (you'll lose whatever
+in-memory Redis state existed, including the canary entry, since the
+Deployments were genuinely deleted and recreated, not just made
+unreachable).
 
 ### 6. Clean up Flux
 

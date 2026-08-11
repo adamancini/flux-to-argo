@@ -1222,8 +1222,11 @@ in-place update, not a delete-and-recreate — watch `task verify:start`'s
 logs (or run `task verify:report` after) to confirm zero downtime.
 
 **Rollback**, at any point before "Cutover complete" prints: `flux resume
-helmrelease guestbook -n flux-system` and `argocd app delete guestbook`.
+helmrelease guestbook -n flux-system` and
+`argocd app delete guestbook --cascade=false`.
 ```
+
+A later fix round changed this to two separate commands in the README (not one line joined with `&&` between two inline-code spans, which is unsafe to copy-paste from raw markdown) and added `--cascade=false` to the delete — discovered during manual validation that `argocd app delete`'s default `--cascade=true` deletes every resource the Application tracks, not just the Application object, causing real downtime that the verification probe caught (canary lost, pod identities doubled). `migrate.sh` itself was also restructured into labeled `BEFORE`/`STEP N`/`AFTER` sections with Flux/ArgoCD state snapshots at each transition — see Step 2's current content above, which reflects this.
 
 - [ ] **Step 6: Commit**
 

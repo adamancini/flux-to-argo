@@ -51,7 +51,7 @@ No PersistentVolumes. This is deliberate: with no persistence, an accidental pod
 
 ### Rollback
 
-Before step 6d completes, rollback is just `flux resume helmrelease guestbook` plus deleting the AKP `Application`. This falls out of the sequencing (suspend, don't delete, until cleanup) rather than requiring separate rollback code.
+Before step 6d completes, rollback is `flux resume helmrelease guestbook` plus deleting the AKP `Application` with `--cascade=false`. The `--cascade=false` is load-bearing: `argocd app delete`'s default (`--cascade=true`) deletes every resource the Application tracks along with the Application object itself, which would take down the live guestbook instead of just removing ArgoCD's bookkeeping — discovered the hard way during manual validation, when the default-cascade delete deleted the running Deployments/Services and the probe caught the resulting real downtime (canary entry lost, pod identities doubled). This falls out of the sequencing (suspend, don't delete, until cleanup) rather than requiring separate rollback code — it just requires the right flag.
 
 ## Verification (the "no downtime" proof)
 
