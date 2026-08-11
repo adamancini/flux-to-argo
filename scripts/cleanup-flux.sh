@@ -9,12 +9,20 @@ set -euo pipefail
 FLUX_NAMESPACE="flux-system"
 HELM_RELEASE_NAME="guestbook-demo-guestbook"
 
+# Idempotent no-op if this already ran (or nothing was ever migrated): a
+# missing HelmRelease means there's nothing left to clean up, distinct from
+# a HelmRelease that exists but was never suspended.
+if ! kubectl get helmrelease guestbook -n "${FLUX_NAMESPACE}" >/dev/null 2>&1; then
+  echo "HelmRelease 'guestbook' not found in ${FLUX_NAMESPACE} — already cleaned up, nothing to do."
+  exit 0
+fi
+
 # Guard against running this out of order (before 'task migrate'): if the
 # HelmRelease isn't suspended, Flux's helm-controller still owns the release
 # and deleting the HelmRelease would trigger its own Helm uninstall, taking
 # down the live guestbook instead of just removing dead Flux bookkeeping.
-if [[ "$(kubectl get helmrelease guestbook -n "${FLUX_NAMESPACE}" -o jsonpath='{.spec.suspend}' 2>/dev/null)" != "true" ]]; then
-  echo "HelmRelease 'guestbook' is not suspended — run 'task migrate' first. Aborting." >&2
+if [[ "$(kubectl get helmrelease guestbook -n "${FLUX_NAMESPACE}" -o jsonpath='{.spec.suspend}')" != "true" ]]; then
+  echo "HelmRelease 'guestbook' exists but is not suspended — run 'task migrate' first. Aborting." >&2
   exit 1
 fi
 
