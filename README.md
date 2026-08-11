@@ -40,7 +40,15 @@ instance you may already have — this PoC never touches shared instances.
 
 ### 3. Push to GitHub and deploy via Flux
 
-<!-- filled in by Task 5 -->
+One-time: push this repo to GitHub so Flux (and later, ArgoCD) can pull the
+chart from it.
+
+    gh repo create adamancini/flux-to-argo --public --source=. --remote=origin
+    git push -u origin HEAD:main
+
+Then deploy the guestbook via a Flux `GitRepository` + `HelmRelease`:
+
+    task deploy:flux
 
 ### 4. Start the verification probe
 

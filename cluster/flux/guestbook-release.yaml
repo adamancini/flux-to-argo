@@ -1,0 +1,17 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: guestbook
+  namespace: flux-system
+spec:
+  interval: 1m
+  targetNamespace: guestbook-demo
+  install:
+    createNamespace: true
+  chart:
+    spec:
+      chart: chart/guestbook
+      sourceRef:
+        kind: GitRepository
+        name: guestbook
+        namespace: flux-system
