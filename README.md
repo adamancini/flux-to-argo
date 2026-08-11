@@ -65,7 +65,25 @@ with:
 
 ### 5. Migrate to ArgoCD
 
-<!-- filled in by Task 7 -->
+With the probe running (previous step), log in to the AKP instance's ArgoCD
+API once per shell session:
+
+    argocd login <your-akp-instance-argocd-url>
+
+Then run the cutover:
+
+    task migrate
+
+This creates the ArgoCD `Application`, diffs it against what Flux already
+deployed (aborting if there's unexpected drift), suspends the Flux
+`HelmRelease` (not deleted — this is your rollback point), syncs the
+`Application` in place, and promotes it to automated sync with self-heal.
+Because resource identity (kind/namespace/name) never changes, this is an
+in-place update, not a delete-and-recreate — watch `task verify:start`'s
+logs (or run `task verify:report` after) to confirm zero downtime.
+
+**Rollback**, at any point before "Cutover complete" prints: `flux resume
+helmrelease guestbook -n flux-system` and `argocd app delete guestbook`.
 
 ### 6. Clean up Flux
 
