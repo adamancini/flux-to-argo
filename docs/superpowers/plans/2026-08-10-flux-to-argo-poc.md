@@ -1047,7 +1047,18 @@ spec:
     name: flux-to-argo
     namespace: guestbook-demo
   syncPolicy: {}
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /metadata/annotations/argocd.argoproj.io~1tracking-id
+    - group: ""
+      kind: Service
+      jsonPointers:
+        - /metadata/annotations/argocd.argoproj.io~1tracking-id
 ```
+
+`ignoreDifferences` is required here, not optional polish: ArgoCD unconditionally stamps a `argocd.argoproj.io/tracking-id` annotation onto every resource it adopts that no other ArgoCD Application has managed before. Since Flux created these resources, `argocd app diff` will show this annotation as an addition on the very first check, before any sync has run — with no CLI flag to exclude it. Without `ignoreDifferences`, `migrate.sh`'s diff-based safety gate (Step 2) would abort on every first-time cutover, mistaking ArgoCD's own adoption bookkeeping for real drift. Genuine drift (an actual image tag, replica count, or config difference) still shows up and still aborts the migration — only this one known, expected, per-adoption annotation is excluded from the comparison.
 
 - [ ] **Step 2: Create `scripts/migrate.sh`**
 

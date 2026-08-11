@@ -41,7 +41,7 @@ No PersistentVolumes. This is deliberate: with no persistence, an accidental pod
 5. **`task verify:start`** — start a background verification probe (see Verification below) that runs continuously through the rest of the flow.
 6. **`task migrate`** — the cutover, as one scripted sequence:
    a. Create the AKP `Application` from the manifest at `cluster/argocd/guestbook-app.yaml` (same chart/values/namespace as the Flux `HelmRelease`, sync policy **manual**, `Prune=false`), applied against the AKP instance via the `akuity`/`argocd` CLI.
-   b. Run an `argocd app diff` equivalent against the AKP instance — expect near-zero drift, since it's the same rendered manifests Flux already applied.
+   b. Run an `argocd app diff` equivalent against the AKP instance — expect zero *meaningful* drift, since it's the same rendered manifests Flux already applied. The `Application`'s `spec.ignoreDifferences` excludes the `argocd.argoproj.io/tracking-id` annotation ArgoCD unconditionally stamps on first adoption of a resource — without that exclusion, this expected annotation would look identical to real drift and abort every first-time cutover.
    c. `flux suspend helmrelease guestbook -n flux-system` — Flux stops reconciling. Nothing is deleted at this step; suspension is the actual point of no return we can still cleanly reverse.
    d. Sync the AKP `Application`. Because resource identity (kind/namespace/name) is unchanged and the diff was near-zero, ArgoCD performs an in-place apply, not a delete+recreate — Services keep their ClusterIPs, pods are not touched unless the diff surfaces a real change.
    e. Flip the `Application` to automated sync + self-heal once the sync is confirmed healthy.
@@ -104,7 +104,7 @@ flux-to-argo/
 
 ## Error handling
 
-- **Diff shows unexpected drift at step 6b**: abort before suspending Flux; fix the AKP `Application` source/values until the diff is clean, then retry.
+- **Diff shows unexpected drift at step 6b**: abort before suspending Flux; fix the AKP `Application` source/values until the diff is clean (beyond the intentionally-ignored tracking-id annotation), then retry.
 - **AKP sync fails at step 6d**: Flux is still suspended but the old resources are untouched (no delete+recreate happened), so the fix is either resolving the sync error or resuming Flux and deleting the `Application` to fully roll back.
 - **Probe records a failure or a restart-count change during cutover**: this is the PoC surfacing a real problem, not something to handle silently — `verify:report` should print exactly when and what changed so it's visible in the walkthrough.
 
