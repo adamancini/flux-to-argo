@@ -96,4 +96,6 @@ is dead metadata, not a live dependency):
 
 ### 7. Tear down
 
-<!-- filled in by Task 9 -->
+Destroy the AKP instance and delete the k3d cluster:
+
+    task down
