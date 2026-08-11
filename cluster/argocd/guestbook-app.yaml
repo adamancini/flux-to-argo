@@ -13,3 +13,12 @@ spec:
     name: flux-to-argo
     namespace: guestbook-demo
   syncPolicy: {}
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /metadata/annotations/argocd.argoproj.io~1tracking-id
+    - group: ""
+      kind: Service
+      jsonPointers:
+        - /metadata/annotations/argocd.argoproj.io~1tracking-id
