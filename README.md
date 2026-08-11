@@ -87,7 +87,12 @@ helmrelease guestbook -n flux-system` and `argocd app delete guestbook`.
 
 ### 6. Clean up Flux
 
-<!-- filled in by Task 8 -->
+Once the ArgoCD `Application` is healthy and automated, remove the
+now-suspended Flux objects and the Helm release secret Flux's
+helm-controller created (ArgoCD doesn't use Helm release secrets, so this
+is dead metadata, not a live dependency):
+
+    task cleanup:flux
 
 ### 7. Tear down
 
