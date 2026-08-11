@@ -1150,7 +1150,7 @@ git commit -m "Add ArgoCD Application manifest and migration cutover script"
 
 **Interfaces:**
 - Consumes: the suspended `HelmRelease`/`GitRepository` from Task 7's `migrate.sh`.
-- Produces: `flux-system` with no `guestbook` `HelmRelease`/`GitRepository`, and no orphaned Helm release `Secret` in `guestbook-demo`.
+- Produces: `flux-system` with no `guestbook` `HelmRelease`/`GitRepository`, and no orphaned Helm release `Secret`.
 
 - [ ] **Step 1: Create `scripts/cleanup-flux.sh`**
 
@@ -1158,16 +1158,24 @@ git commit -m "Add ArgoCD Application manifest and migration cutover script"
 #!/usr/bin/env bash
 set -euo pipefail
 
-NAMESPACE="guestbook-demo"
+# The HelmRelease never set spec.storageNamespace or spec.releaseName, so
+# Flux's helm-controller used its defaults: the release Secret lives in the
+# HelmRelease's own namespace (flux-system), not targetNamespace
+# (guestbook-demo), under the release name "<targetNamespace>-<chart>"
+# (guestbook-demo-guestbook) rather than the chart name.
+FLUX_NAMESPACE="flux-system"
+HELM_RELEASE_NAME="guestbook-demo-guestbook"
 
 echo "==> Deleting suspended Flux objects"
 kubectl delete helmrelease guestbook -n flux-system --ignore-not-found
 kubectl delete gitrepository guestbook -n flux-system --ignore-not-found
 
 echo "==> Removing orphaned Helm release secret"
-kubectl delete secret -n "${NAMESPACE}" \
-  -l "owner=helm,name=guestbook" --ignore-not-found
+kubectl delete secret -n "${FLUX_NAMESPACE}" \
+  -l "owner=helm,name=${HELM_RELEASE_NAME}" --ignore-not-found
 ```
+
+This deviates from an earlier draft of this step, which assumed the Helm release Secret would be in `guestbook-demo` under the release name `guestbook` — that assumption was wrong. Flux's helm-controller defaults (unset `storageNamespace`/`releaseName`) put it in `flux-system` under `guestbook-demo-guestbook`, discovered by inspecting the live cluster during implementation.
 
 - [ ] **Step 2: Make the script executable**
 
