@@ -9,16 +9,18 @@ for the full rationale.
 
 ## Prerequisites
 
-- `k3d`, `kubectl`, `helm` (v3), `flux` CLI, `terraform` (>= 1.5), `argocd`
-  CLI, `gh` CLI (authenticated), `jq`, `curl`, `task` (go-task)
+- `docker` (k3d runs on it), `k3d`, `kubectl`, `helm` (v3, used for local
+  chart linting — not invoked by any script here), `flux` CLI, `terraform`
+  (>= 1.5), `argocd` CLI, `gh` CLI (authenticated), `jq`, `curl`, `task`
+  (go-task)
 - `AKUITY_API_KEY_ID` / `AKUITY_API_KEY_SECRET` set in your environment
 
 ## Walkthrough
 
 ### 1. Cluster + Flux
 
-Create the k3d cluster and install Flux's source-controller and
-helm-controller:
+Create the k3d cluster and install Flux (source-controller, helm-controller,
+and Flux's other standard controllers):
 
     task cluster:up
 
@@ -46,6 +48,11 @@ chart from it.
     gh repo create adamancini/flux-to-argo --public --source=. --remote=origin
     git push -u origin HEAD:main
 
+If you're forking this repo rather than using `adamancini/flux-to-argo`
+directly, substitute your own repo name above and update `repoURL` in both
+`cluster/flux/guestbook-source.yaml` and `cluster/argocd/guestbook-app.yaml`
+to match.
+
 Then deploy the guestbook via a Flux `GitRepository` + `HelmRelease`:
 
     task deploy:flux
@@ -58,10 +65,10 @@ guestbook entry to later confirm redis-leader was never recreated:
 
     task verify:start
 
-Leave it running through the migration step. Stop it and see the results
-with:
-
-    task verify:report
+Leave it running through the whole migration (next section) and, optionally,
+the Flux cleanup after that — stopping it early would cut the probe's
+coverage of the cutover window it's meant to observe. Don't run
+`task verify:report` yet; that comes after the migration step below.
 
 ### 5. Migrate to ArgoCD
 
@@ -69,6 +76,10 @@ With the probe running (previous step), log in to the AKP instance's ArgoCD
 API once per shell session:
 
     argocd login <your-akp-instance-argocd-url>
+
+Find `<your-akp-instance-argocd-url>` via
+`akuity argocd instance get <instance-name> -o yaml` and look for the
+`hostname` field, or from the Akuity Portal UI.
 
 Then run the cutover:
 
@@ -79,8 +90,10 @@ deployed (aborting if there's unexpected drift), suspends the Flux
 `HelmRelease` (not deleted — this is your rollback point), syncs the
 `Application` in place, and promotes it to automated sync with self-heal.
 Because resource identity (kind/namespace/name) never changes, this is an
-in-place update, not a delete-and-recreate — watch `task verify:start`'s
-logs (or run `task verify:report` after) to confirm zero downtime.
+in-place update, not a delete-and-recreate. Once the cutover completes, run
+`task verify:report` to stop the probe and print the pass/fail summary —
+that's the point in the walkthrough where those results are meant to appear
+(see the previous section).
 
 **Rollback**, at any point before "Cutover complete" prints: `flux resume
 helmrelease guestbook -n flux-system` and `argocd app delete guestbook`.

@@ -7,6 +7,9 @@ metadata:
     role: leader
     tier: backend
 spec:
+  # Hardcoded (not templated from values, unlike frontend/redisFollower):
+  # a Redis replication leader isn't horizontally scalable the way the
+  # follower/frontend tiers are, so there's no replicaCount to expose.
   replicas: 1
   selector:
     matchLabels:

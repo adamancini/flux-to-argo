@@ -12,7 +12,13 @@ spec:
   destination:
     name: flux-to-argo
     namespace: guestbook-demo
-  syncPolicy: {}
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+  # If the chart ever adds other resource kinds that get adopted from an
+  # existing Flux-managed release (e.g. ConfigMap, Secret), add a matching
+  # ignoreDifferences entry for the tracking-id annotation on that kind too
+  # -- otherwise its first-adoption diff will look like drift.
   ignoreDifferences:
     - group: apps
       kind: Deployment

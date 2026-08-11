@@ -4,7 +4,7 @@ terraform {
   required_providers {
     akp = {
       source  = "akuity/akp"
-      version = "~> 0.10"
+      version = "~> 0.14"
     }
   }
 }

@@ -85,9 +85,10 @@ tasks:
 *.tfstate
 *.tfstate.*
 .terraform/
-.terraform.lock.hcl
 terraform.tfvars
 ```
+
+A later fix round removed `.terraform.lock.hcl` from this list: lock files are now committed for both stacks (`terraform/01-argocd/.terraform.lock.hcl`, `terraform/03-clusters/.terraform.lock.hcl`) so a fresh `terraform init` reproduces the exact same `akuity/akp` provider build every time, rather than silently resolving to whatever new 0.x version exists at init time. Only `.terraform/` (the local provider binary cache) stays ignored.
 
 - [ ] **Step 3: Create `README.md` skeleton**
 
@@ -184,7 +185,7 @@ apiVersion: v2
 name: guestbook
 description: Classic 3-tier guestbook (frontend + redis-leader + redis-follower) for the flux-to-argo migration PoC
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "1.0"
 ```
 
@@ -194,15 +195,23 @@ appVersion: "1.0"
 frontend:
   replicaCount: 1
   image:
-    repository: us-docker.pkg.dev/google-samples/containers/gke/guestbook
-    tag: v3
+    repository: us-docker.pkg.dev/google-samples/containers/gke/gb-frontend
+    tag: v5
   service:
     port: 80
 
+# NOTE: redisLeader and redisFollower intentionally use different images
+# from different maintainers -- this is not accidental drift, do not
+# "fix" them to match:
+#   - redisLeader runs a plain stock Redis image; it just serves as the
+#     replication master and needs no special bootstrap logic.
+#   - redisFollower runs the GKE sample's purpose-built follower image,
+#     which bootstraps itself as a replica against the leader on startup.
+# Verified working together on a live cluster (all pods Running 1/1).
 redisLeader:
   image:
-    repository: us-docker.pkg.dev/google-samples/containers/gke/redis
-    tag: v2
+    repository: docker.io/redis
+    tag: 6.0.5
   service:
     port: 6379
 
@@ -214,6 +223,8 @@ redisFollower:
   service:
     port: 6379
 ```
+
+> Note: `redisLeader`'s replica count is hardcoded to `1` directly in `templates/redis-leader-deployment.yaml` (not templated from values, unlike the other two tiers) — see Task 2, Step 6's template and the comment added there: a Redis replication leader isn't horizontally scalable the way the follower/frontend tiers are, so there's no `redisLeader.replicaCount` value to set.
 
 - [ ] **Step 4: Create `chart/guestbook/templates/frontend-deployment.yaml`**
 
@@ -279,6 +290,9 @@ metadata:
     role: leader
     tier: backend
 spec:
+  # Hardcoded (not templated from values, unlike frontend/redisFollower):
+  # a Redis replication leader isn't horizontally scalable the way the
+  # follower/frontend tiers are, so there's no replicaCount to expose.
   replicas: 1
   selector:
     matchLabels:
@@ -457,14 +471,22 @@ Expected: one node in `Ready` status; both deployments show `1/1` under `AVAILAB
 Replace `<!-- filled in by Task 3 -->` under `### 1. Cluster + Flux` with:
 
 ```markdown
-Create the k3d cluster and install Flux's source-controller and
-helm-controller:
+Create the k3d cluster and install Flux (source-controller, helm-controller,
+and Flux's other standard controllers):
 
     task cluster:up
 
 This is idempotent — running it again with the cluster already up just
 re-applies the Flux manifests.
 ```
+
+A later fix round reworded this: plain `flux install` also brings up
+kustomize-controller and notification-controller, not just
+source-controller/helm-controller, so the original phrasing understated
+what actually gets installed (this is a docs-only wording fix — the
+`scripts/cluster-up.sh` `flux install` invocation itself is unchanged, and
+this task's dependency on source-controller/helm-controller specifically
+being `Available` is still accurate and untouched).
 
 - [ ] **Step 6: Commit**
 
@@ -528,7 +550,7 @@ terraform {
   required_providers {
     akp = {
       source  = "akuity/akp"
-      version = "~> 0.10"
+      version = "~> 0.14"
     }
   }
 }
@@ -557,6 +579,11 @@ resource "akp_instance" "argocd" {
     "admin.password" = bcrypt(var.admin_password)
   }
 
+  # Known tradeoff: because argocd_secret is ignored below, changing
+  # var.admin_password later and re-running `terraform apply` will NOT
+  # update the live admin password -- the ignore would need to be removed
+  # temporarily (or the password changed another way, e.g. via the
+  # argocd/akuity CLI) for a password rotation to take effect.
   lifecycle {
     ignore_changes = [argocd_secret]
   }
@@ -625,7 +652,7 @@ terraform {
   required_providers {
     akp = {
       source  = "akuity/akp"
-      version = "~> 0.10"
+      version = "~> 0.14"
     }
   }
 }
@@ -672,10 +699,12 @@ set -euo pipefail
 
 for stack in terraform/01-argocd terraform/03-clusters; do
   echo "==> ${stack}"
-  terraform -chdir="${stack}" init -upgrade
+  terraform -chdir="${stack}" init
   terraform -chdir="${stack}" apply -auto-approve
 done
 ```
+
+A later fix round changed `init -upgrade` to plain `init`: with the provider pinned to `~> 0.14` and both stacks' `.terraform.lock.hcl` now committed to the repo (see `.gitignore` — it no longer excludes lock files), `-upgrade` would silently re-resolve to the latest allowed 0.x version on every run instead of reproducing the locked/verified provider version.
 
 - [ ] **Step 9: Make the script executable**
 
@@ -883,9 +912,17 @@ fi
 : > "${PROBE_LOG}"
 : > "${PODS_LOG}"
 
+cleanup_port_forward() {
+  if [[ -f "${PORT_FORWARD_PIDFILE}" ]]; then
+    kill "$(cat "${PORT_FORWARD_PIDFILE}")" 2>/dev/null || true
+    rm -f "${PORT_FORWARD_PIDFILE}"
+  fi
+}
+
 kubectl -n "${NAMESPACE}" port-forward svc/frontend 8080:80 \
   >"${LOGDIR}/port-forward.log" 2>&1 &
 echo $! > "${PORT_FORWARD_PIDFILE}"
+trap cleanup_port_forward ERR
 sleep 2
 
 CANARY="canary-$(date +%s)-$$"
@@ -914,9 +951,12 @@ curl -sf "http://localhost:8080/guestbook.php?cmd=set&key=canary&value=${CANARY}
   done
 ) &
 echo $! > "${PIDFILE}"
+trap - ERR
 
 echo "Probe started (pid $(cat "${PIDFILE}")). Logs: ${PROBE_LOG}, ${PODS_LOG}"
 ```
+
+Note: `cleanup_port_forward` is wired to an `ERR` trap (not `EXIT`) so that a failure partway through startup (e.g. the initial canary `curl` failing) kills the just-started `port-forward` instead of leaking it — the trap is cleared (`trap - ERR`) once the background probe loop is successfully launched, since from that point ownership of stopping things belongs to `verify-report.sh`.
 
 - [ ] **Step 2: Create `scripts/verify-report.sh`**
 
@@ -959,9 +999,9 @@ echo "== Canary entry =="
 CANARY="$(cat "${LOGDIR}/canary.txt")"
 kubectl -n "${NAMESPACE}" port-forward svc/frontend 8081:80 >/dev/null 2>&1 &
 FWD_PID=$!
+trap 'kill "${FWD_PID}" 2>/dev/null || true' EXIT
 sleep 2
 RESULT="$(curl -sf "http://localhost:8081/guestbook.php?cmd=get&key=canary" || echo 'UNREACHABLE')"
-kill "${FWD_PID}" 2>/dev/null || true
 
 if [[ "${RESULT}" == *"${CANARY}"* ]]; then
   echo "canary entry '${CANARY}' PRESENT"
@@ -975,6 +1015,8 @@ else
   echo "RESULT: FAIL (${failures} failed requests)"
 fi
 ```
+
+Note: the report's own port-forward (`FWD_PID`) is cleaned up via an `EXIT` trap rather than an explicit `kill` after the `curl`, so it's still killed even if the `curl` step or anything after it exits unexpectedly.
 
 - [ ] **Step 3: Make both scripts executable**
 
@@ -1046,7 +1088,13 @@ spec:
   destination:
     name: flux-to-argo
     namespace: guestbook-demo
-  syncPolicy: {}
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+  # If the chart ever adds other resource kinds that get adopted from an
+  # existing Flux-managed release (e.g. ConfigMap, Secret), add a matching
+  # ignoreDifferences entry for the tracking-id annotation on that kind too
+  # -- otherwise its first-adoption diff will look like drift.
   ignoreDifferences:
     - group: apps
       kind: Deployment
@@ -1060,6 +1108,8 @@ spec:
 
 `ignoreDifferences` is required here, not optional polish: ArgoCD unconditionally stamps a `argocd.argoproj.io/tracking-id` annotation onto every resource it adopts that no other ArgoCD Application has managed before. Since Flux created these resources, `argocd app diff` will show this annotation as an addition on the very first check, before any sync has run — with no CLI flag to exclude it. Without `ignoreDifferences`, `migrate.sh`'s diff-based safety gate (Step 2) would abort on every first-time cutover, mistaking ArgoCD's own adoption bookkeeping for real drift. Genuine drift (an actual image tag, replica count, or config difference) still shows up and still aborts the migration — only this one known, expected, per-adoption annotation is excluded from the comparison.
 
+A later fix round changed `syncPolicy: {}` to add `syncOptions: [CreateNamespace=true]`, so the Application is self-sufficient if ever applied to a fresh cluster where Flux hasn't already created the `guestbook-demo` namespace (in this PoC's actual run, Flux always creates it first via `install.createNamespace: true`, so this had no effect on the live migration — it's a correctness fix for future/standalone use). It also added the comment above `ignoreDifferences` about extending it if the chart gains other adopted resource kinds.
+
 - [ ] **Step 2: Create `scripts/migrate.sh`**
 
 ```bash
@@ -1072,8 +1122,11 @@ echo "==> Creating ArgoCD Application (manual sync)"
 argocd app create -f cluster/argocd/guestbook-app.yaml --upsert
 
 echo "==> Diffing before touching Flux"
+# argocd app diff exits non-zero both for real drift AND for unrelated
+# failures (not logged in, unreachable API, etc.) -- this check can't tell
+# the two apart, so the message below covers both.
 if ! argocd app diff "${APP_NAME}"; then
-  echo "Diff shows drift — resolve before suspending Flux. Aborting." >&2
+  echo "argocd app diff reported a difference (or failed to run — check you're logged in with 'argocd login'). Resolve before suspending Flux. Aborting." >&2
   exit 1
 fi
 
@@ -1089,6 +1142,8 @@ argocd app set "${APP_NAME}" --sync-policy automated --auto-prune --self-heal
 
 echo "==> Cutover complete. Flux HelmRelease is suspended (not deleted)."
 ```
+
+A later fix round reworded the diff-check error message: the original ("Diff shows drift — resolve before suspending Flux. Aborting.") implied the failure was always real drift, but `argocd app diff` also exits non-zero for unrelated problems like not being logged in or API connectivity issues — the new message calls that out explicitly.
 
 - [ ] **Step 3: Make the script executable**
 
@@ -1166,9 +1221,18 @@ set -euo pipefail
 FLUX_NAMESPACE="flux-system"
 HELM_RELEASE_NAME="guestbook-demo-guestbook"
 
+# Guard against running this out of order (before 'task migrate'): if the
+# HelmRelease isn't suspended, Flux's helm-controller still owns the release
+# and deleting the HelmRelease would trigger its own Helm uninstall, taking
+# down the live guestbook instead of just removing dead Flux bookkeeping.
+if [[ "$(kubectl get helmrelease guestbook -n "${FLUX_NAMESPACE}" -o jsonpath='{.spec.suspend}' 2>/dev/null)" != "true" ]]; then
+  echo "HelmRelease 'guestbook' is not suspended — run 'task migrate' first. Aborting." >&2
+  exit 1
+fi
+
 echo "==> Deleting suspended Flux objects"
-kubectl delete helmrelease guestbook -n flux-system --ignore-not-found
-kubectl delete gitrepository guestbook -n flux-system --ignore-not-found
+kubectl delete helmrelease guestbook -n "${FLUX_NAMESPACE}" --ignore-not-found
+kubectl delete gitrepository guestbook -n "${FLUX_NAMESPACE}" --ignore-not-found
 
 echo "==> Removing orphaned Helm release secret"
 kubectl delete secret -n "${FLUX_NAMESPACE}" \
@@ -1176,6 +1240,8 @@ kubectl delete secret -n "${FLUX_NAMESPACE}" \
 ```
 
 This deviates from an earlier draft of this step, which assumed the Helm release Secret would be in `guestbook-demo` under the release name `guestbook` — that assumption was wrong. Flux's helm-controller defaults (unset `storageNamespace`/`releaseName`) put it in `flux-system` under `guestbook-demo-guestbook`, discovered by inspecting the live cluster during implementation.
+
+A later fix round added the `spec.suspend` precondition guard above (to stop `task cleanup:flux` from being run before `task migrate` and accidentally uninstalling the live guestbook via Flux's own Helm uninstall path), and switched the inline `flux-system` literals on the `kubectl delete helmrelease`/`kubectl delete gitrepository` lines to reuse the already-declared `${FLUX_NAMESPACE}` variable.
 
 - [ ] **Step 2: Make the script executable**
 
@@ -1232,15 +1298,34 @@ git commit -m "Add Flux cleanup script"
 #!/usr/bin/env bash
 set -euo pipefail
 
+LOGDIR=".verify"
+PIDFILE="${LOGDIR}/probe.pid"
+PORT_FORWARD_PIDFILE="${LOGDIR}/port-forward.pid"
+
+echo "==> Stopping any still-running verification probe"
+if [[ -f "${PIDFILE}" ]]; then
+  kill "$(cat "${PIDFILE}")" 2>/dev/null || true
+  rm -f "${PIDFILE}"
+fi
+if [[ -f "${PORT_FORWARD_PIDFILE}" ]]; then
+  kill "$(cat "${PORT_FORWARD_PIDFILE}")" 2>/dev/null || true
+  rm -f "${PORT_FORWARD_PIDFILE}"
+fi
+
 echo "==> Destroying Terraform-managed AKP resources"
-terraform -chdir=terraform/03-clusters destroy -auto-approve
-terraform -chdir=terraform/01-argocd destroy -auto-approve
+terraform -chdir=terraform/03-clusters destroy -auto-approve \
+  || echo "WARNING: terraform/03-clusters destroy failed, continuing" >&2
+terraform -chdir=terraform/01-argocd destroy -auto-approve \
+  || echo "WARNING: terraform/01-argocd destroy failed, continuing" >&2
 
 echo "==> Deleting k3d cluster"
-k3d cluster delete flux-to-argo
+k3d cluster delete flux-to-argo \
+  || echo "WARNING: k3d cluster delete failed, continuing" >&2
 
 rm -rf .verify
 ```
+
+A later fix round added two things: (1) best-effort probe cleanup up front (mirroring `verify-report.sh`'s pidfile-kill pattern), since `rm -rf .verify` alone could leave a background `kubectl port-forward` and curl loop running if `task verify:report` was never run before teardown; (2) `|| echo "WARNING: ... continuing" >&2` on each `terraform destroy` and the `k3d cluster delete`, so a failure in one step (e.g. `03-clusters destroy`) doesn't abort the script under `set -e` before the remaining cleanup steps get a chance to run.
 
 - [ ] **Step 2: Make the script executable**
 

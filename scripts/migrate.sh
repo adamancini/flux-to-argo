@@ -7,8 +7,11 @@ echo "==> Creating ArgoCD Application (manual sync)"
 argocd app create -f cluster/argocd/guestbook-app.yaml --upsert
 
 echo "==> Diffing before touching Flux"
+# argocd app diff exits non-zero both for real drift AND for unrelated
+# failures (not logged in, unreachable API, etc.) -- this check can't tell
+# the two apart, so the message below covers both.
 if ! argocd app diff "${APP_NAME}"; then
-  echo "Diff shows drift — resolve before suspending Flux. Aborting." >&2
+  echo "argocd app diff reported a difference (or failed to run — check you're logged in with 'argocd login'). Resolve before suspending Flux. Aborting." >&2
   exit 1
 fi
 
