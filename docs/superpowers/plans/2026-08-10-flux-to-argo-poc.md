@@ -600,11 +600,16 @@ output "instance_id" {
 
 output "argocd_url" {
   description = "ArgoCD API/UI hostname for this instance -- use with 'argocd login'"
-  value       = akp_instance.argocd.argocd.spec.instance_spec.fqdn
+  # instance_spec.fqdn is only populated for custom-domain instances and
+  # stays null for the default akuity.cloud subdomain scheme this PoC uses
+  # -- subdomain (defaults to the instance id) plus the fixed suffix is
+  # what's actually reachable, confirmed empirically against several live
+  # instances during manual validation.
+  value = "${akp_instance.argocd.argocd.spec.instance_spec.subdomain}.cd.akuity.cloud"
 }
 ```
 
-A later addition added the `argocd_url` output, so `scripts/akp-up.sh` (Step 8, below) can print a ready-to-copy login command immediately after the instance is created, instead of requiring a separate `akuity argocd instance get` lookup. `argocd.spec.instance_spec.fqdn` is a provider-computed attribute (confirmed via `terraform providers schema -json` against the live `akuity/akp` v0.14.0 provider) holding the instance's full hostname, e.g. `<instance-id>.cd.akuity.cloud`.
+A later addition added the `argocd_url` output, so `scripts/akp-up.sh` (Step 8, below) can print a ready-to-copy login command immediately after the instance is created, instead of requiring a separate `akuity argocd instance get` lookup. The first version of this output referenced `argocd.spec.instance_spec.fqdn` — this turned out to be wrong: `fqdn` is only populated for custom-domain instances and stays `null` for the default subdomain scheme this PoC uses, and evaluating a null-valued output for the first time (no prior state entry) caused `terraform apply` to silently skip adding it to state at all rather than writing a null — so `terraform output -raw argocd_url` failed with `Error: Output "argocd_url" not found` even after a real, successful, credentialed apply. Fixed by building the URL from `instance_spec.subdomain` (confirmed populated, defaults to the instance id) plus the fixed `.cd.akuity.cloud` suffix instead — verified against a live instance (`terraform apply` showed `Changes to Outputs: + argocd_url = "<id>.cd.akuity.cloud"`, and `terraform output -raw argocd_url` returned it correctly).
 
 - [ ] **Step 3: Create `terraform/01-argocd/terraform.tfvars.example`**
 

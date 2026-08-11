@@ -49,5 +49,10 @@ output "instance_id" {
 
 output "argocd_url" {
   description = "ArgoCD API/UI hostname for this instance -- use with 'argocd login'"
-  value       = akp_instance.argocd.argocd.spec.instance_spec.fqdn
+  # instance_spec.fqdn is only populated for custom-domain instances and
+  # stays null for the default akuity.cloud subdomain scheme this PoC uses
+  # -- subdomain (defaults to the instance id) plus the fixed suffix is
+  # what's actually reachable, confirmed empirically against several live
+  # instances during manual validation.
+  value = "${akp_instance.argocd.argocd.spec.instance_spec.subdomain}.cd.akuity.cloud"
 }
