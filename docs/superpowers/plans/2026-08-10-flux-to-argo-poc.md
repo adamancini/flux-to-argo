@@ -1221,8 +1221,8 @@ Because resource identity (kind/namespace/name) never changes, this is an
 in-place update, not a delete-and-recreate — watch `task verify:start`'s
 logs (or run `task verify:report` after) to confirm zero downtime.
 
-**Rollback**, at any point before "Cutover complete" prints: `flux resume
-helmrelease guestbook -n flux-system` and
+**Rollback**, at any point before "Cutover complete" prints:
+`flux resume helmrelease guestbook -n flux-system` and
 `argocd app delete guestbook --cascade=false`.
 ```
 

@@ -44,8 +44,8 @@ Then deploy the guestbook via a Flux `GitRepository` + `HelmRelease`:
 
     task deploy:flux
 
-At this point, check `kubectl get pods -n guestbook-demo` and `flux get
-helmrelease -n flux-system` — the guestbook is live and entirely
+At this point, check `kubectl get pods -n guestbook-demo` and
+`flux get helmrelease -n flux-system` — the guestbook is live and entirely
 Flux-managed. No AKP instance exists yet; that's deliberate, so you can see
 the "before" state of the migration clearly before ArgoCD enters the
 picture at all.
@@ -111,11 +111,11 @@ that's the point in the walkthrough where those results are meant to appear
 (frontend/redis-leader/redis-follower Deployments and Services) along with
 the Application object itself — taking down the live guestbook instead of
 just removing ArgoCD's bookkeeping and handing control back to Flux. If you
-forget the flag and the workload disappears, `flux reconcile helmrelease
-guestbook -n flux-system --force` reinstalls it (you'll lose whatever
-in-memory Redis state existed, including the canary entry, since the
-Deployments were genuinely deleted and recreated, not just made
-unreachable).
+forget the flag and the workload disappears,
+`flux reconcile helmrelease guestbook -n flux-system --force` reinstalls it
+(you'll lose whatever in-memory Redis state existed, including the canary
+entry, since the Deployments were genuinely deleted and recreated, not just
+made unreachable).
 
 ### 6. Clean up Flux
 
