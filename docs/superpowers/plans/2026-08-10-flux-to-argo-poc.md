@@ -597,7 +597,14 @@ resource "akp_instance" "argocd" {
 output "instance_id" {
   value = akp_instance.argocd.id
 }
+
+output "argocd_url" {
+  description = "ArgoCD API/UI hostname for this instance -- use with 'argocd login'"
+  value       = akp_instance.argocd.argocd.spec.instance_spec.fqdn
+}
 ```
+
+A later addition added the `argocd_url` output, so `scripts/akp-up.sh` (Step 8, below) can print a ready-to-copy login command immediately after the instance is created, instead of requiring a separate `akuity argocd instance get` lookup. `argocd.spec.instance_spec.fqdn` is a provider-computed attribute (confirmed via `terraform providers schema -json` against the live `akuity/akp` v0.14.0 provider) holding the instance's full hostname, e.g. `<instance-id>.cd.akuity.cloud`.
 
 - [ ] **Step 3: Create `terraform/01-argocd/terraform.tfvars.example`**
 
@@ -702,14 +709,28 @@ org_name = "your-akuity-org"
 #!/usr/bin/env bash
 set -euo pipefail
 
-for stack in terraform/01-argocd terraform/03-clusters; do
-  echo "==> ${stack}"
-  terraform -chdir="${stack}" init
-  terraform -chdir="${stack}" apply -auto-approve
-done
+echo "==> terraform/01-argocd"
+terraform -chdir=terraform/01-argocd init
+terraform -chdir=terraform/01-argocd apply -auto-approve
+
+ARGOCD_URL="$(terraform -chdir=terraform/01-argocd output -raw argocd_url)"
+echo
+echo "=============================================================="
+echo "ArgoCD instance is up: https://${ARGOCD_URL}"
+echo "Log in with:"
+echo "  argocd login ${ARGOCD_URL} --grpc-web --username admin"
+echo "(password is in terraform/01-argocd/terraform.tfvars)"
+echo "=============================================================="
+echo
+
+echo "==> terraform/03-clusters"
+terraform -chdir=terraform/03-clusters init
+terraform -chdir=terraform/03-clusters apply -auto-approve
 ```
 
 A later fix round changed `init -upgrade` to plain `init`: with the provider pinned to `~> 0.14` and both stacks' `.terraform.lock.hcl` now committed to the repo (see `.gitignore` — it no longer excludes lock files), `-upgrade` would silently re-resolve to the latest allowed 0.x version on every run instead of reproducing the locked/verified provider version.
+
+A subsequent addition split the single `for stack in ...` loop into two explicit blocks so it could print the `argocd_url` output (see Step 2's `main.tf` above) as a ready-to-copy login command right after the instance is created, before moving on to cluster registration — removing the need to separately shell out to `akuity argocd instance get` to find the hostname, which the README previously instructed as a manual step.
 
 - [ ] **Step 9: Make the script executable**
 

@@ -92,16 +92,21 @@ With the probe (and `verify:watch`, if you started it) still running, this
 is a good point to confirm nothing about standing up AKP disturbed the
 Flux-managed guestbook either.
 
+As soon as the instance is created, `task akp:up` prints its URL and a
+ready-to-copy login command, e.g.:
+
+    ArgoCD instance is up: https://<instance-id>.cd.akuity.cloud
+    Log in with:
+      argocd login <instance-id>.cd.akuity.cloud --grpc-web --username admin
+    (password is in terraform/01-argocd/terraform.tfvars)
+
 ### 5. Migrate to ArgoCD
 
 With the probe still running (started two sections up), log in to the AKP
-instance's ArgoCD API once per shell session:
+instance's ArgoCD API once per shell session using the command
+`task akp:up` printed in the previous section:
 
-    argocd login <your-akp-instance-argocd-url> --grpc-web --username admin
-
-Find `<your-akp-instance-argocd-url>` via
-`akuity argocd instance get <instance-name> -o yaml` and look for the
-`hostname` field, or from the Akuity Portal UI.
+    argocd login <instance-id>.cd.akuity.cloud --grpc-web --username admin
 
 Then run the cutover:
 

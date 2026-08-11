@@ -46,3 +46,8 @@ resource "akp_instance" "argocd" {
 output "instance_id" {
   value = akp_instance.argocd.id
 }
+
+output "argocd_url" {
+  description = "ArgoCD API/UI hostname for this instance -- use with 'argocd login'"
+  value       = akp_instance.argocd.argocd.spec.instance_spec.fqdn
+}
