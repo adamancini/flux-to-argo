@@ -6,6 +6,14 @@ frontend:
   service:
     port: 80
 
+# NOTE: redisLeader and redisFollower intentionally use different images
+# from different maintainers -- this is not accidental drift, do not
+# "fix" them to match:
+#   - redisLeader runs a plain stock Redis image; it just serves as the
+#     replication master and needs no special bootstrap logic.
+#   - redisFollower runs the GKE sample's purpose-built follower image,
+#     which bootstraps itself as a replica against the leader on startup.
+# Verified working together on a live cluster (all pods Running 1/1).
 redisLeader:
   image:
     repository: docker.io/redis
