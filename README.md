@@ -27,7 +27,16 @@ re-applies the Flux manifests.
 
 ### 2. Provision the Akuity Platform instance
 
-<!-- filled in by Task 4 -->
+Copy `terraform/01-argocd/terraform.tfvars.example` and
+`terraform/03-clusters/terraform.tfvars.example` to `terraform.tfvars` in
+each directory, fill in your `org_name` (and an `admin_password` for
+01-argocd), then:
+
+    task akp:up
+
+This provisions a dedicated AKP instance (`flux-to-argo-poc`) and registers
+the k3d cluster on it as `flux-to-argo`. It's isolated from any other AKP
+instance you may already have — this PoC never touches shared instances.
 
 ### 3. Push to GitHub and deploy via Flux
 
