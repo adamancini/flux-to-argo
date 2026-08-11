@@ -1,15 +1,15 @@
 frontend:
   replicaCount: 1
   image:
-    repository: us-docker.pkg.dev/google-samples/containers/gke/guestbook
-    tag: v3
+    repository: us-docker.pkg.dev/google-samples/containers/gke/gb-frontend
+    tag: v5
   service:
     port: 80
 
 redisLeader:
   image:
-    repository: us-docker.pkg.dev/google-samples/containers/gke/redis
-    tag: v2
+    repository: docker.io/redis
+    tag: 6.0.5
   service:
     port: 6379
 
