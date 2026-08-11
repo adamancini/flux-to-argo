@@ -81,7 +81,7 @@ coverage of the cutover window it's meant to observe. Don't run
 With the probe running (previous step), log in to the AKP instance's ArgoCD
 API once per shell session:
 
-    argocd login <your-akp-instance-argocd-url>
+    argocd login <your-akp-instance-argocd-url> --grpc-web --username admin
 
 Find `<your-akp-instance-argocd-url>` via
 `akuity argocd instance get <instance-name> -o yaml` and look for the
@@ -101,8 +101,14 @@ in-place update, not a delete-and-recreate. Once the cutover completes, run
 that's the point in the walkthrough where those results are meant to appear
 (see the previous section).
 
-**Rollback**, at any point before "Cutover complete" prints: `flux resume
-helmrelease guestbook -n flux-system` and `argocd app delete guestbook`.
+**Rollback**, at any point before "Cutover complete" prints:
+
+    flux resume helmrelease guestbook -n flux-system
+    argocd app delete guestbook
+
+(Run as two commands, not copy-pasted as one line with `&&` between two
+inline-code spans — that's easy to mis-paste with stray backticks if you're
+reading raw markdown instead of a rendered view.)
 
 ### 6. Clean up Flux
 
