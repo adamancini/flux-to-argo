@@ -26,6 +26,11 @@ tasks:
     cmds:
       - ./scripts/verify-report.sh
 
+  verify:watch:
+    desc: Live-watch pods, Flux HelmRelease, ArgoCD Application, and probe logs (run in a second terminal)
+    cmds:
+      - ./scripts/verify-watch.sh
+
   migrate:
     desc: Cut the guestbook over from Flux to the Akuity-hosted ArgoCD Application
     cmds:

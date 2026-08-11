@@ -37,8 +37,8 @@ No PersistentVolumes. This is deliberate: with no persistence, an accidental pod
 1. **`task cluster:up`** — create the k3d cluster, `flux install` (plain manifest install, no bootstrap-to-self-repo).
 2. **Push to GitHub** — chart and Flux/ArgoCD manifests pushed to `adamancini/flux-to-argo` (the ArgoCD `Application` manifest goes along for the ride here too, but nothing applies it yet).
 3. **`task deploy:flux`** — apply Flux `GitRepository` + `HelmRelease` for the guestbook chart. Flux's helm-controller installs the 3-tier app into `guestbook-demo` and owns it (including creating a real Helm release Secret, since helm-controller calls the Helm SDK directly). At this point the guestbook is live and visibly Flux-managed only — no AKP instance exists yet, deliberately, so the "before" state of the migration is unambiguous.
-4. **`task akp:up`** — Terraform creates the new dedicated AKP instance (`terraform/01-argocd`) and registers the k3d cluster as a workload cluster (`terraform/03-clusters`).
-5. **`task verify:start`** — start a background verification probe (see Verification below) that runs continuously through the rest of the flow.
+4. **`task verify:start`** — start a background verification probe (see Verification below), deliberately before AKP exists at all, so its coverage extends over AKP provisioning too, not just the migration cutover. `task verify:watch`, run in a second terminal, tails the probe's log files and watches the `guestbook-demo` pods, the Flux `HelmRelease`, and (once it exists) the ArgoCD `Application` for changes in real time — a live view alongside the probe's after-the-fact summary.
+5. **`task akp:up`** — Terraform creates the new dedicated AKP instance (`terraform/01-argocd`) and registers the k3d cluster as a workload cluster (`terraform/03-clusters`). The probe (and `verify:watch`, if running) stays up through this step, confirming AKP provisioning is as non-disruptive to the running guestbook as the migration itself.
 6. **`task migrate`** — the cutover, as one scripted sequence:
    a. Create the AKP `Application` from the manifest at `cluster/argocd/guestbook-app.yaml` (same chart/values/namespace as the Flux `HelmRelease`, sync policy **manual**, `Prune=false`), applied against the AKP instance via the `akuity`/`argocd` CLI.
    b. Run an `argocd app diff` equivalent against the AKP instance — expect zero *meaningful* drift, since it's the same rendered manifests Flux already applied. The `Application`'s `spec.ignoreDifferences` excludes the `argocd.argoproj.io/tracking-id` annotation ArgoCD unconditionally stamps on first adoption of a resource — without that exclusion, this expected annotation would look identical to real drift and abort every first-time cutover.
@@ -55,7 +55,7 @@ Before step 6d completes, rollback is `flux resume helmrelease guestbook` plus d
 
 ## Verification (the "no downtime" proof)
 
-A background probe runs continuously from step 5 through step 6, logging to a timestamped file:
+A background probe runs continuously from step 4 through step 6 — spanning AKP provisioning as well as the migration cutover — logging to a timestamped file:
 
 - **Availability**: a curl loop against the guestbook frontend Service, once per second, recording pass/fail and latency.
 - **Workload stability**: periodic snapshots (every few seconds) of pod restart-counts and creation-timestamps for `frontend`, `redis-leader`, and `redis-follower` — any change during the cutover window indicates an unwanted delete+recreate.
@@ -96,6 +96,7 @@ flux-to-argo/
 │   ├── deploy-flux.sh
 │   ├── verify-start.sh
 │   ├── verify-report.sh
+│   ├── verify-watch.sh             # run in a second terminal: live tail + resource watch
 │   ├── migrate.sh
 │   ├── cleanup-flux.sh
 │   └── teardown.sh

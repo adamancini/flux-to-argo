@@ -50,7 +50,33 @@ Flux-managed. No AKP instance exists yet; that's deliberate, so you can see
 the "before" state of the migration clearly before ArgoCD enters the
 picture at all.
 
-### 3. Provision the Akuity Platform instance
+### 3. Start the verification probe
+
+Start the background probe now, before AKP even exists — it curls the
+frontend once a second, snapshots pod restart counts and identities, and
+writes a canary guestbook entry to later confirm redis-leader was never
+recreated:
+
+    task verify:start
+
+In a second terminal, watch it happen live:
+
+    task verify:watch
+
+That tails the probe's log files and continuously watches the
+`guestbook-demo` pods and the Flux `HelmRelease` for changes (plus polling
+the ArgoCD `Application` once it exists later on) — leave it running
+alongside everything below so you can see, in real time, that provisioning
+AKP and migrating are genuinely non-disruptive, not just after the fact
+from a summary.
+
+Leave `verify:start`'s probe running through AKP provisioning, the whole
+migration (two sections down), and, optionally, the Flux cleanup after that
+— stopping it early would cut its coverage of the window it's meant to
+observe. Don't run `task verify:report` yet; that comes after the migration
+step below.
+
+### 4. Provision the Akuity Platform instance
 
 Copy `terraform/01-argocd/terraform.tfvars.example` and
 `terraform/03-clusters/terraform.tfvars.example` to `terraform.tfvars` in
@@ -62,24 +88,14 @@ each directory, fill in your `org_name` (and an `admin_password` for
 This provisions a dedicated AKP instance (`flux-to-argo-poc`) and registers
 the k3d cluster on it as `flux-to-argo`. It's isolated from any other AKP
 instance you may already have — this PoC never touches shared instances.
-
-### 4. Start the verification probe
-
-Before migrating, start the background probe — it curls the frontend once a
-second, snapshots pod restart counts and identities, and writes a canary
-guestbook entry to later confirm redis-leader was never recreated:
-
-    task verify:start
-
-Leave it running through the whole migration (next section) and, optionally,
-the Flux cleanup after that — stopping it early would cut the probe's
-coverage of the cutover window it's meant to observe. Don't run
-`task verify:report` yet; that comes after the migration step below.
+With the probe (and `verify:watch`, if you started it) still running, this
+is a good point to confirm nothing about standing up AKP disturbed the
+Flux-managed guestbook either.
 
 ### 5. Migrate to ArgoCD
 
-With the probe running (previous step), log in to the AKP instance's ArgoCD
-API once per shell session:
+With the probe still running (started two sections up), log in to the AKP
+instance's ArgoCD API once per shell session:
 
     argocd login <your-akp-instance-argocd-url> --grpc-web --username admin
 
@@ -99,7 +115,9 @@ Because resource identity (kind/namespace/name) never changes, this is an
 in-place update, not a delete-and-recreate. Once the cutover completes, run
 `task verify:report` to stop the probe and print the pass/fail summary —
 that's the point in the walkthrough where those results are meant to appear
-(see the previous section).
+(see "3. Start the verification probe" above). If `verify:watch` is still
+running in your second terminal, stop it too (Ctrl-C) once you've reviewed
+the report.
 
 **Rollback**, at any point before "Cutover complete" prints:
 

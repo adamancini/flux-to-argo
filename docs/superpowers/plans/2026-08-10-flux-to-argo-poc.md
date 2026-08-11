@@ -61,6 +61,11 @@ tasks:
     cmds:
       - ./scripts/verify-report.sh
 
+  verify:watch:
+    desc: Live-watch pods, Flux HelmRelease, ArgoCD Application, and probe logs (run in a second terminal)
+    cmds:
+      - ./scripts/verify-watch.sh
+
   migrate:
     desc: Cut the guestbook over from Flux to the Akuity-hosted ArgoCD Application
     cmds:
@@ -1057,6 +1062,8 @@ with:
 git add scripts/verify-start.sh scripts/verify-report.sh README.md
 git commit -m "Add availability/stability verification probe"
 ```
+
+A later addition added `scripts/verify-watch.sh` and a `verify:watch` Taskfile target (see the Taskfile block near the top of this plan), meant to run in a second terminal alongside `verify:start`. It backgrounds `kubectl get pods -n guestbook-demo --watch`, `kubectl get helmrelease guestbook -n flux-system --watch`, a polling loop over `argocd app get guestbook -o json` (ArgoCD's Application isn't a local Kubernetes resource — it lives on the Akuity-hosted control plane, so it can't use `kubectl --watch`), and `tail -n0 -f` on both `.verify/probe.log` and `.verify/pods.log`, each output line prefixed by source and interleaved onto one terminal (no screen-clearing dashboard — just a combined live log). The same addition also swapped the README's walkthrough order so "Start the verification probe" comes before "Provision the Akuity Platform instance," extending the probe's (and `verify:watch`'s) observation window to cover AKP provisioning too, not just the migration cutover.
 
 ---
 
