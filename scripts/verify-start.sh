@@ -18,9 +18,17 @@ fi
 : > "${PROBE_LOG}"
 : > "${PODS_LOG}"
 
+cleanup_port_forward() {
+  if [[ -f "${PORT_FORWARD_PIDFILE}" ]]; then
+    kill "$(cat "${PORT_FORWARD_PIDFILE}")" 2>/dev/null || true
+    rm -f "${PORT_FORWARD_PIDFILE}"
+  fi
+}
+
 kubectl -n "${NAMESPACE}" port-forward svc/frontend 8080:80 \
   >"${LOGDIR}/port-forward.log" 2>&1 &
 echo $! > "${PORT_FORWARD_PIDFILE}"
+trap cleanup_port_forward ERR
 sleep 2
 
 CANARY="canary-$(date +%s)-$$"
@@ -49,5 +57,6 @@ curl -sf "http://localhost:8080/guestbook.php?cmd=set&key=canary&value=${CANARY}
   done
 ) &
 echo $! > "${PIDFILE}"
+trap - ERR
 
 echo "Probe started (pid $(cat "${PIDFILE}")). Logs: ${PROBE_LOG}, ${PODS_LOG}"

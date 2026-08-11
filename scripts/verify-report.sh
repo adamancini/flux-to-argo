@@ -36,9 +36,9 @@ echo "== Canary entry =="
 CANARY="$(cat "${LOGDIR}/canary.txt")"
 kubectl -n "${NAMESPACE}" port-forward svc/frontend 8081:80 >/dev/null 2>&1 &
 FWD_PID=$!
+trap 'kill "${FWD_PID}" 2>/dev/null || true' EXIT
 sleep 2
 RESULT="$(curl -sf "http://localhost:8081/guestbook.php?cmd=get&key=canary" || echo 'UNREACHABLE')"
-kill "${FWD_PID}" 2>/dev/null || true
 
 if [[ "${RESULT}" == *"${CANARY}"* ]]; then
   echo "canary entry '${CANARY}' PRESENT"
