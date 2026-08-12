@@ -186,3 +186,15 @@ every single sync (Pitfall 1 — `lookup` always returns empty there), and the
 re-triggered on ArgoCD's very first sync, hitting a real SQLite `UNIQUE
 constraint failed` error on the second insert (Pitfall 2), then blocking the
 next sync entirely because the failed Job was never cleaned up.
+
+### 3. Refactor and repoint at the fixed chart
+
+    task adminapp:fix
+
+Repoints the same `Application` at `chart/adminapp-gitops` — the secret now
+resolves with precedence **explicit value > existing in-cluster value >
+random** (set here via `--helm-set sessionSecret=...`, in real usage managed
+with SOPS/Sealed Secrets), and the hook Job is now a plain, statically-named,
+idempotent resource instead of a Helm hook. Two syncs in a row show the
+secret staying put and the Job completing cleanly both times — the old
+broken hook Job gets pruned since it's no longer part of the chart's output.
