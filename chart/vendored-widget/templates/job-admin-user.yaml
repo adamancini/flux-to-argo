@@ -1,0 +1,30 @@
+{{/* DO NOT EDIT -- see Chart.yaml. */}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vendored-widget-admin-user
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: create-admin
+          image: "{{ .Values.sqlite.image.repository }}:{{ .Values.sqlite.image.tag }}"
+          command:
+            - sh
+            - -c
+            - |
+              sqlite3 /data/admin.db "CREATE TABLE IF NOT EXISTS users (username TEXT UNIQUE);"
+              sqlite3 /data/admin.db "INSERT INTO users(username) VALUES('admin');"
+          volumeMounts:
+            - name: db
+              mountPath: /data
+      volumes:
+        - name: db
+          persistentVolumeClaim:
+            claimName: vendored-widget-db

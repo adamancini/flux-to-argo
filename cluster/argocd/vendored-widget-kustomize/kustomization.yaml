@@ -1,0 +1,26 @@
+# DO NOT EDIT the chart this inflates (chart/vendored-widget) -- this overlay
+# exists specifically so we never have to. See
+# docs/superpowers/specs/2026-08-11-helm-lookup-hooks-demo-design.md for why.
+helmCharts:
+  - name: vendored-widget
+    version: 0.1.0
+    releaseName: vendored-widget
+helmGlobals:
+  chartHome: ../../../chart
+patches:
+  - target:
+      kind: Job
+      name: vendored-widget-admin-user
+    patch: |-
+      - op: remove
+        path: /metadata/annotations/helm.sh~1hook
+      - op: remove
+        path: /metadata/annotations/helm.sh~1hook-weight
+      - op: remove
+        path: /metadata/annotations/helm.sh~1hook-delete-policy
+      - op: add
+        path: /metadata/annotations/argocd.argoproj.io~1hook
+        value: PostSync
+      - op: add
+        path: /metadata/annotations/argocd.argoproj.io~1hook-delete-policy
+        value: HookSucceeded

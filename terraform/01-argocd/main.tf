@@ -26,7 +26,8 @@ resource "akp_instance" "argocd" {
   }
 
   argocd_cm = {
-    "accounts.admin" = "apiKey,login"
+    "accounts.admin"         = "apiKey,login"
+    "kustomize.buildOptions" = "--enable-helm"
   }
 
   argocd_secret = {

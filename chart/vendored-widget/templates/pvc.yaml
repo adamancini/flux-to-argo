@@ -1,0 +1,13 @@
+{{/* DO NOT EDIT -- see Chart.yaml. */}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vendored-widget-db
+  labels:
+    app: vendored-widget
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 64Mi
