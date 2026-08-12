@@ -940,6 +940,21 @@ spec:
                 secretKeyRef:
                   name: vendored-widget-session
                   key: session-secret
+          # Mounting the same PVC the Job uses is required, not decorative:
+          # on a WaitForFirstConsumer storage class (e.g. k3d's default
+          # local-path), a PVC with no consumer other than a post-install
+          # hook Job deadlocks -- the installing controller waits for the
+          # PVC to Bind before it will run the hook, but the PVC only binds
+          # once something consumes it. Tasks 2 and 3 hit this live and
+          # fixed it the same way; baking the fix in here from the start
+          # avoids repeating that failure when Task 8 deploys this chart.
+          volumeMounts:
+            - name: db
+              mountPath: /data
+      volumes:
+        - name: db
+          persistentVolumeClaim:
+            claimName: vendored-widget-db
 ```
 
 - [ ] **Step 4: Create `chart/vendored-widget/templates/secret.yaml`**
