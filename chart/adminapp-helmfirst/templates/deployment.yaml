@@ -24,3 +24,10 @@ spec:
                 secretKeyRef:
                   name: adminapp-session
                   key: session-secret
+          volumeMounts:
+            - name: db
+              mountPath: /data
+      volumes:
+        - name: db
+          persistentVolumeClaim:
+            claimName: adminapp-db
