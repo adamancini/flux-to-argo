@@ -1,0 +1,15 @@
+image:
+  repository: busybox
+  tag: "1.36"
+
+sqlite:
+  image:
+    repository: keinos/sqlite3
+    tag: "3.46.0"
+
+# Session secret. Precedence: this value > existing in-cluster value > random.
+# Set this explicitly for GitOps/ArgoCD (manage it with SOPS/Sealed Secrets in
+# real usage) -- the in-cluster lookup this falls back to only works under
+# `helm install`/`helm upgrade`, and the random fallback after that would be
+# regenerated on every `helm template` render.
+sessionSecret: ""

@@ -1,0 +1,34 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # Static name, no helm.sh/hook* annotations: this is now a plain, tracked
+  # resource. Its rendered spec doesn't change between syncs, so ArgoCD sees
+  # no diff after the first successful run and never re-applies or
+  # re-creates it -- it only touches this Job again if something about it
+  # actually changes (image bump, manual deletion). The idempotent SQL below
+  # is defense-in-depth for exactly those cases, not the only thing
+  # preventing a re-run.
+  name: adminapp-admin-user-setup
+  labels:
+    app: adminapp
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: create-admin
+          image: "{{ .Values.sqlite.image.repository }}:{{ .Values.sqlite.image.tag }}"
+          command:
+            - sh
+            - -c
+            - |
+              sqlite3 /data/admin.db "CREATE TABLE IF NOT EXISTS users (username TEXT UNIQUE);"
+              sqlite3 /data/admin.db "INSERT OR IGNORE INTO users(username) VALUES('admin');"
+          volumeMounts:
+            - name: db
+              mountPath: /data
+      volumes:
+        - name: db
+          persistentVolumeClaim:
+            claimName: adminapp-db
