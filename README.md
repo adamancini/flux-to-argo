@@ -173,3 +173,16 @@ and a non-idempotent `post-install` hook Job — into the `adminapp-demo`
 namespace. Under Flux's real Helm SDK installs/upgrades, both work exactly as
 a helm-first developer would expect: the secret is stable across reconciles,
 and the hook only ever runs once.
+
+### 2. Adopt it under ArgoCD and watch both pitfalls surface
+
+    task adminapp:break
+
+Creates an ArgoCD `Application` pointed at the *same* `chart/adminapp-helmfirst`
+path, suspends Flux, and syncs it twice. `argocd` renders with `helm
+template`, not `helm install`/`upgrade`, so: the `session-secret` changes on
+every single sync (Pitfall 1 — `lookup` always returns empty there), and the
+`post-install` hook Job — which already ran once under Flux — gets
+re-triggered on ArgoCD's very first sync, hitting a real SQLite `UNIQUE
+constraint failed` error on the second insert (Pitfall 2), then blocking the
+next sync entirely because the failed Job was never cleaned up.

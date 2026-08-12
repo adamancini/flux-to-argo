@@ -1,0 +1,34 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: adminapp
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/adamancini/flux-to-argo
+    targetRevision: main
+    path: chart/adminapp-helmfirst
+  destination:
+    name: flux-to-argo
+    namespace: adminapp-demo
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+  # Adopting resources Flux already created -- ArgoCD stamps a tracking-id
+  # annotation on first adoption of each resource kind, which would
+  # otherwise look like drift on the very first diff/sync. See the guestbook
+  # scenario's cluster/argocd/guestbook-app.yaml for the same pattern.
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /metadata/annotations/argocd.argoproj.io~1tracking-id
+    - group: ""
+      kind: Secret
+      jsonPointers:
+        - /metadata/annotations/argocd.argoproj.io~1tracking-id
+    - group: ""
+      kind: PersistentVolumeClaim
+      jsonPointers:
+        - /metadata/annotations/argocd.argoproj.io~1tracking-id
