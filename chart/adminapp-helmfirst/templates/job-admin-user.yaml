@@ -1,0 +1,31 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: adminapp-admin-user
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded
+spec:
+  # No retries: one pod attempt, one exit code, so a failure is immediately
+  # visible instead of being retried/masked by the Job controller.
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: create-admin
+          image: "{{ .Values.sqlite.image.repository }}:{{ .Values.sqlite.image.tag }}"
+          command:
+            - sh
+            - -c
+            - |
+              sqlite3 /data/admin.db "CREATE TABLE IF NOT EXISTS users (username TEXT UNIQUE);"
+              sqlite3 /data/admin.db "INSERT INTO users(username) VALUES('admin');"
+          volumeMounts:
+            - name: db
+              mountPath: /data
+      volumes:
+        - name: db
+          persistentVolumeClaim:
+            claimName: adminapp-db

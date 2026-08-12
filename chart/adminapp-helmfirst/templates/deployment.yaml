@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: adminapp
+  labels:
+    app: adminapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: adminapp
+  template:
+    metadata:
+      labels:
+        app: adminapp
+    spec:
+      containers:
+        - name: adminapp
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          command: ["sh", "-c", "echo adminapp running with SESSION_SECRET=$SESSION_SECRET; sleep infinity"]
+          env:
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: adminapp-session
+                  key: session-secret

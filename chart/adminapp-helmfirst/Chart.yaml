@@ -1,0 +1,6 @@
+apiVersion: v2
+name: adminapp
+description: Minimal demo app illustrating a helm-first lookup-based secret and a non-idempotent post-install hook Job
+type: application
+version: 0.1.0
+appVersion: "1.0"

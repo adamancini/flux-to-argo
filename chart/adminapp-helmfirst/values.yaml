@@ -1,0 +1,8 @@
+image:
+  repository: busybox
+  tag: "1.36"
+
+sqlite:
+  image:
+    repository: keinos/sqlite3
+    tag: "3.46.0"
