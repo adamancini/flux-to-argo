@@ -154,3 +154,22 @@ is dead metadata, not a live dependency):
 Destroy the AKP instance and delete the k3d cluster:
 
     task down
+
+## Bonus scenario: Helm lookup & hooks pitfalls
+
+A second, independent scenario on the same cluster and AKP instance, showing
+two pitfalls that hit a "helm-first" chart specifically when it's deployed
+via ArgoCD instead of `helm install`/`helm upgrade`, and how to refactor a
+chart to avoid them. See
+[the design spec](docs/superpowers/specs/2026-08-11-helm-lookup-hooks-demo-design.md)
+for the full rationale, including real evidence from production chart fixes.
+
+### 1. Deploy the anti-pattern chart via Flux
+
+    task adminapp:deploy-flux
+
+Deploys `chart/adminapp-helmfirst` — a tiny app with a `lookup`-based secret
+and a non-idempotent `post-install` hook Job — into the `adminapp-demo`
+namespace. Under Flux's real Helm SDK installs/upgrades, both work exactly as
+a helm-first developer would expect: the secret is stable across reconciles,
+and the hook only ever runs once.
