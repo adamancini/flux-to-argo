@@ -45,3 +45,28 @@ tasks:
     desc: Tear down the k3d cluster and destroy the AKP instance
     cmds:
       - ./scripts/teardown.sh
+
+  adminapp:deploy-flux:
+    desc: Deploy the adminapp-helmfirst chart via a Flux HelmRelease
+    cmds:
+      - ./scripts/adminapp-deploy-flux.sh
+
+  adminapp:break:
+    desc: Adopt adminapp under ArgoCD and reproduce the lookup/hooks pitfalls
+    cmds:
+      - ./scripts/adminapp-break.sh
+
+  adminapp:fix:
+    desc: Repoint the ArgoCD Application at the refactored chart and prove both pitfalls are fixed
+    cmds:
+      - ./scripts/adminapp-fix.sh
+
+  adminapp:vendored:
+    desc: Deploy the vendored-widget chart via a Kustomize overlay and show the hook annotation rewrite
+    cmds:
+      - ./scripts/adminapp-vendored.sh
+
+  adminapp:cleanup:
+    desc: Remove all adminapp/vendored-widget Flux and ArgoCD objects
+    cmds:
+      - ./scripts/adminapp-cleanup.sh
