@@ -43,6 +43,7 @@ section "STEP 2: Suspend Flux so it stops reconciling the resources ArgoCD is ab
 flux suspend helmrelease adminapp -n flux-system
 
 section "STEP 3: First ArgoCD sync -- adopts the Flux-created resources"
+argocd app get "${APP_NAME}" --hard-refresh >/dev/null 2>&1 || true
 argocd app sync "${APP_NAME}" || true
 argocd_state
 SYNC1_SECRET="$(secret_value)"
@@ -57,6 +58,7 @@ echo "this first ArgoCD-triggered hook run is expected to fail immediately:"
 job_state
 
 section "STEP 4: Second ArgoCD sync -- the previous failed Job was never deleted (hook-delete-policy is hook-succeeded only)"
+argocd app get "${APP_NAME}" --hard-refresh >/dev/null 2>&1 || true
 argocd app sync "${APP_NAME}" || true
 argocd_state
 SYNC2_SECRET="$(secret_value)"
