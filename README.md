@@ -196,5 +196,10 @@ resolves with precedence **explicit value > existing in-cluster value >
 random** (set here via `--helm-set sessionSecret=...`, in real usage managed
 with SOPS/Sealed Secrets), and the hook Job is now a plain, statically-named,
 idempotent resource instead of a Helm hook. Two syncs in a row show the
-secret staying put and the Job completing cleanly both times — the old
-broken hook Job gets pruned since it's no longer part of the chart's output.
+secret staying put and the Job completing cleanly both times. The old broken
+hook Job from `adminapp-helmfirst` stays behind, though — ArgoCD's prune only
+applies to normal tracked resources, not hook resources, whose lifecycle is
+governed solely by `helm.sh/hook-delete-policy`; since that Job Failed rather
+than Succeeded, its `hook-succeeded` policy never fires. It's inert and gets
+removed along with everything else once `task adminapp:cleanup`/`task down`
+deletes the namespace.

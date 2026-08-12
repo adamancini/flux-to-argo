@@ -38,7 +38,7 @@ argocd app set "${APP_NAME}" \
   --revision main \
   --helm-set sessionSecret=demo-stable-session-secret
 
-section "STEP 2: First sync on the refactored chart (prune removes the old stuck hook Job)"
+section "STEP 2: First sync on the refactored chart"
 argocd app sync "${APP_NAME}" --prune
 argocd app wait "${APP_NAME}" --health --timeout 120
 argocd_state
@@ -61,6 +61,15 @@ else
   echo "session-secret still changing -- check that --helm-set sessionSecret=... took effect."
 fi
 echo "Pitfall 2: job/adminapp-admin-user-setup above should show Complete/exit 0 on both syncs"
-echo "(idempotent INSERT OR IGNORE), and the old job/adminapp-admin-user from the helmfirst"
-echo "chart should be gone (pruned):"
-kubectl get job adminapp-admin-user -n "${NAMESPACE}" 2>&1 || echo "job/adminapp-admin-user correctly pruned (not found)"
+echo "(idempotent INSERT OR IGNORE)."
+echo
+echo "Note: the OLD job/adminapp-admin-user from the helmfirst chart is still present below,"
+echo "even with --prune on both syncs above -- this is expected, not a bug. ArgoCD's standard"
+echo "prune mechanism does not delete Helm hook resources; a hook's lifecycle is governed only"
+echo "by its own helm.sh/hook-delete-policy, and this Job's policy (hook-succeeded) never fires"
+echo "because it Failed, not Succeeded. This is the same 'hook resources aren't managed with"
+echo "corresponding releases' problem the design spec cites from Helm's own docs -- it's still"
+echo "true even after switching to a chart that no longer defines the hook at all. It's inert"
+echo "(Failed, not blocking anything), and 'task adminapp:cleanup'/'task down' remove it along"
+echo "with everything else in the namespace regardless:"
+kubectl get job adminapp-admin-user -n "${NAMESPACE}" 2>&1 || echo "job/adminapp-admin-user not found"
