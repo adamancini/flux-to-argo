@@ -1,0 +1,17 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: adminapp
+  namespace: flux-system
+spec:
+  interval: 1m
+  targetNamespace: adminapp-demo
+  install:
+    createNamespace: true
+  chart:
+    spec:
+      chart: chart/adminapp-helmfirst
+      sourceRef:
+        kind: GitRepository
+        name: adminapp
+        namespace: flux-system
