@@ -15,6 +15,9 @@ if [[ -f "${PORT_FORWARD_PIDFILE}" ]]; then
   rm -f "${PORT_FORWARD_PIDFILE}"
 fi
 
+echo "==> Cleaning up adminapp/vendored-widget demo objects"
+./scripts/adminapp-cleanup.sh || echo "WARNING: adminapp-cleanup failed, continuing" >&2
+
 echo "==> Destroying Terraform-managed AKP resources"
 terraform -chdir=terraform/03-clusters destroy -auto-approve \
   || echo "WARNING: terraform/03-clusters destroy failed, continuing" >&2

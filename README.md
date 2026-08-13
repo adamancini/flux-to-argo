@@ -219,3 +219,7 @@ against what ArgoCD actually applied to show the rewrite took effect without
 touching the chart's source. This fixes ArgoCD's *lifecycle mapping* of the
 hook; it does not and cannot fix the vendored Job's own non-idempotent SQL —
 that's still out of our hands for code we don't own.
+
+`task adminapp:cleanup` removes everything from this scenario on its own if
+you want to reset it independently of the guestbook scenario; `task down`
+also runs it automatically as part of the full teardown.
