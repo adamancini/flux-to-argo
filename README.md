@@ -203,3 +203,19 @@ governed solely by `helm.sh/hook-delete-policy`; since that Job Failed rather
 than Succeeded, its `hook-succeeded` policy never fires. It's inert and gets
 removed along with everything else once `task adminapp:cleanup`/`task down`
 deletes the namespace.
+
+### 4. A third-party chart you can't edit
+
+    task adminapp:vendored
+
+`chart/vendored-widget-kustomize/vendored-widget` simulates a chart you pulled from someone else's Helm
+repo — same lookup/hooks anti-patterns, but off-limits to edit or fork.
+`chart/vendored-widget-kustomize/` inflates it with Kustomize's
+`helmCharts` generator and patches its Job's `helm.sh/hook*` annotations to
+`argocd.argoproj.io/hook*` equivalents at render time (needs
+`kustomize.buildOptions: --enable-helm` on the AKP instance — see
+`terraform/01-argocd/main.tf`). The script diffs the chart's raw output
+against what ArgoCD actually applied to show the rewrite took effect without
+touching the chart's source. This fixes ArgoCD's *lifecycle mapping* of the
+hook; it does not and cannot fix the vendored Job's own non-idempotent SQL —
+that's still out of our hands for code we don't own.
