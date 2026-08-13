@@ -212,13 +212,20 @@ deletes the namespace.
 repo — same lookup/hooks anti-patterns, but off-limits to edit or fork.
 `chart/vendored-widget-kustomize/` inflates it with Kustomize's
 `helmCharts` generator and patches its Job's `helm.sh/hook*` annotations to
-`argocd.argoproj.io/hook*` equivalents at render time (needs
-`kustomize.buildOptions: --enable-helm` on the AKP instance — see
-`terraform/01-argocd/main.tf`). The script diffs the chart's raw output
-against what ArgoCD actually applied to show the rewrite took effect without
-touching the chart's source. This fixes ArgoCD's *lifecycle mapping* of the
-hook; it does not and cannot fix the vendored Job's own non-idempotent SQL —
-that's still out of our hands for code we don't own.
+`argocd.argoproj.io/hook: Sync` (plus `hook-delete-policy`) at render time
+(needs `kustomize.buildOptions: --enable-helm` on the AKP instance — see
+`terraform/01-argocd/main.tf`). The script compares the chart's raw
+`helm.sh/hook*` annotations against the `hookType` ArgoCD's own sync-result
+API reports for that Job, to show the rewrite took effect without touching
+the chart's source — `argocd app manifests` can't be used for this, since it
+structurally excludes hook resources. `Sync` (not `PostSync`) is the
+deliberate mapping: it is the one ArgoCD hook phase with no Helm-hook
+fallback equivalent, so seeing `hookType=Sync` in the sync result is what
+actually proves the overlay's rewrite ran, rather than ArgoCD merely falling
+back to interpreting the untouched `helm.sh/hook` annotation. This fixes
+ArgoCD's *lifecycle mapping* of the hook; it does not and cannot fix the
+vendored Job's own non-idempotent SQL — that's still out of our hands for
+code we don't own.
 
 `task adminapp:cleanup` removes everything from this scenario on its own if
 you want to reset it independently of the guestbook scenario; `task down`

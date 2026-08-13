@@ -24,7 +24,10 @@ job_state() {
 
 argocd_state() {
   local json
-  json="$(argocd app get "${APP_NAME}" -o json)"
+  if ! json="$(argocd app get "${APP_NAME}" -o json 2>/dev/null)"; then
+    echo "--- argocd: application '${APP_NAME}' not found ---"
+    return
+  fi
   echo "--- argocd: application '${APP_NAME}': sync=$(echo "${json}" | jq -r '.status.sync.status') health=$(echo "${json}" | jq -r '.status.health.status') ---"
 }
 

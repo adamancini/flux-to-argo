@@ -5,9 +5,13 @@ metadata:
   # resource. Its rendered spec doesn't change between syncs, so ArgoCD sees
   # no diff after the first successful run and never re-applies or
   # re-creates it -- it only touches this Job again if something about it
-  # actually changes (image bump, manual deletion). The idempotent SQL below
-  # is defense-in-depth for exactly those cases, not the only thing
-  # preventing a re-run.
+  # actually changes (image bump, manual deletion). Caveat: a Job's
+  # spec.template is immutable in Kubernetes, so an image bump specifically
+  # would cause a failed apply (immutable-field error), not a clean re-run,
+  # unless this resource also carries
+  # argocd.argoproj.io/sync-options: Replace=true (or Force=true). The
+  # idempotent SQL below is defense-in-depth for exactly these cases, not the
+  # only thing preventing a re-run.
   name: adminapp-admin-user-setup
   labels:
     app: adminapp

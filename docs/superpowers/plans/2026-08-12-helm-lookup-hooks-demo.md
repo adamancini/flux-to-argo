@@ -10,6 +10,7 @@
 
 ## Global Constraints
 
+- **This plan document is a point-in-time historical record** of what was originally planned, not a live spec — the shipped scripts, `README.md`, and the design spec are authoritative for current behavior. Some plan text below (e.g. claims that `--prune` removes the stuck hook Job, and the original `argocd app manifests`-based verification approach for `adminapp:vendored`) was corrected during actual implementation but this plan file itself was not back-patched for every such correction. Don't treat step-by-step text here as ground truth without cross-checking the shipped code.
 - Spec of record: `docs/superpowers/specs/2026-08-11-helm-lookup-hooks-demo-design.md` — every task below implements one part of it; consult it for the "why" behind any step.
 - **Depends on the guestbook scenario's infra already being up**: `task cluster:up` and `task akp:up` must have already been run (they provision the k3d cluster `flux-to-argo` and the AKP instance `flux-to-argo-poc`/registered cluster `flux-to-argo` this plan reuses). This plan does not provision or tear down that infra itself.
 - New namespace `adminapp-demo` isolates everything in this plan from the guestbook scenario's `guestbook-demo` namespace. Nothing in this plan modifies `chart/guestbook`, `cluster/flux/guestbook-*`, or `cluster/argocd/guestbook-app.yaml`.

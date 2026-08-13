@@ -37,7 +37,7 @@ Helm's own docs are explicit that hook resources are not managed with the corres
 
 Real-world evidence: `soju-helm@3066047` added a non-idempotent `post-install` Job (admin-user creation via `sojudb create-user`, no existing-user check). `soju-helm@d158e22` ("fix: make admin-setup Job idempotent for Argo CD re-syncs") fixed the resulting production failure — the Job re-ran on every ArgoCD sync, `hook-delete-policy: hook-succeeded` deleted the completed Job each time so ArgoCD saw nothing to skip, and the unguarded insert then hit a real `UNIQUE constraint failed` error that left a stuck failed Job blocking the next sync.
 
-**Better fix, for charts we own:** don't map the Job to an ArgoCD hook at all. Convert it to a **plain, statically-named, tracked resource** (part of the chart's normal templated output, no `helm.sh/hook*` annotations; add `argocd.argoproj.io/sync-wave` only if ordering relative to other resources actually matters). This fixes the root cause, not just the symptom: a Job with a static name and an unchanged rendered spec produces *no diff* on subsequent syncs, so ArgoCD never re-applies or re-creates it — it only touches the Job again if something about it actually changes (image bump, manual deletion). Idempotent Job logic (`INSERT OR IGNORE`, existence check) stays as defense-in-depth, but it's no longer the only thing standing between correctness and a failed sync.
+**Better fix, for charts we own:** don't map the Job to an ArgoCD hook at all. Convert it to a **plain, statically-named, tracked resource** (part of the chart's normal templated output, no `helm.sh/hook*` annotations; add `argocd.argoproj.io/sync-wave` only if ordering relative to other resources actually matters). This fixes the root cause, not just the symptom: a Job with a static name and an unchanged rendered spec produces *no diff* on subsequent syncs, so ArgoCD never re-applies or re-creates it — it only touches the Job again if something about it actually changes (image bump, manual deletion). Caveat: a Job's `spec.template` is immutable in Kubernetes, so an image bump specifically would cause a *failed apply* (immutable-field error), not a clean re-run, unless the resource also carries `argocd.argoproj.io/sync-options: Replace=true` (or `Force=true`). Idempotent Job logic (`INSERT OR IGNORE`, existence check) stays as defense-in-depth, but it's no longer the only thing standing between correctness and a failed sync.
 
 **For third-party charts we can't edit or fork:** we can't remove their `helm.sh/hook` annotations or fix non-idempotent logic inside them. The mitigation (per the oneuptime post) is a Kustomize overlay or Helm post-renderer that rewrites `helm.sh/hook`/`hook-weight`/`hook-delete-policy` into explicit `argocd.argoproj.io/hook`/`sync-wave`/`hook-delete-policy` equivalents at render time. This gives us control over ArgoCD's *lifecycle mapping* (e.g. forcing `post-install` to `Sync` per the argo-cd#17604 argument above) even though the Job's own non-idempotency remains out of our hands.
 
@@ -62,7 +62,7 @@ Mirrors the guestbook scenario's "Flux first, then ArgoCD reveals the problem" s
    - the rendered `session-secret` value differs between the two syncs (proving Pitfall 1 — under Flux this never happened)
    - the second sync's hook Job fails with a `UNIQUE constraint failed` error and the Application's health goes `Degraded` (proving Pitfall 2)
 3. **`task adminapp:fix`** — repoint the same Application's source path to `chart/adminapp-gitops`, sync twice more, and print evidence the secret is now stable across syncs and the Job succeeds/no-ops both times, health `Healthy`.
-4. **`task adminapp:vendored`** — deploy `chart/vendored-widget-kustomize/vendored-widget` via the Kustomize overlay, and diff the vendored chart's raw `helm template` output against the ArgoCD Application's actual applied manifests (`argocd app manifests`) to show the hook annotations were rewritten at render time without editing the chart.
+4. **`task adminapp:vendored`** — deploy `chart/vendored-widget-kustomize/vendored-widget` via the Kustomize overlay, and compare the raw chart's `helm.sh/hook*` annotations (via `helm template`) against the `hookType` field ArgoCD's own sync-result API reports (via `argocd app get -o json`'s `.status.operationState.syncResult.resources[]`) to show the hook annotations were rewritten at render time without editing the chart. (`argocd app manifests` was tried first and doesn't work for this — it structurally excludes hook resources, a live-verified finding from Task 8. The overlay maps the Job to `argocd.argoproj.io/hook: Sync`, not `PostSync`: `Sync` is the one ArgoCD hook phase with no Helm-hook-annotation fallback equivalent, so seeing `hookType=Sync` in the sync result is what actually proves the rewrite took effect — `PostSync` would have been indistinguishable from ArgoCD's own fallback interpretation of the untouched `helm.sh/hook` annotation.)
 5. **`task adminapp:cleanup`** — delete the Flux `HelmRelease`/`GitRepository` and all three ArgoCD `Application`s created above. Folded into the existing `task down` teardown so nothing new needs a separate lifecycle.
 
 ## Repo layout additions
@@ -72,15 +72,15 @@ flux-to-argo/
 ├── chart/
 │   ├── adminapp-helmfirst/         # anti-pattern: lookup secret + post-install hook Job
 │   ├── adminapp-gitops/            # fix: precedence-chain secret + plain idempotent Job
-│   └── vendored-widget/            # DO NOT EDIT — simulated third-party chart
+│   └── vendored-widget-kustomize/
+│       ├── kustomization.yaml      # DO NOT EDIT the chart below -- overlay rewrites its hook annotations
+│       └── vendored-widget/        # DO NOT EDIT — simulated third-party chart (Chart.yaml, values.yaml, templates/)
 ├── cluster/
 │   ├── flux/
 │   │   └── adminapp-source.yaml, adminapp-release.yaml
 │   └── argocd/
 │       ├── adminapp-app.yaml               # repointed between helmfirst/gitops in Task adminapp:fix
-│       ├── vendored-widget-app.yaml
-│       └── vendored-widget-kustomize/
-│           └── kustomization.yaml
+│       └── vendored-widget-app.yaml
 ├── scripts/
 │   ├── adminapp-deploy-flux.sh
 │   ├── adminapp-break.sh
