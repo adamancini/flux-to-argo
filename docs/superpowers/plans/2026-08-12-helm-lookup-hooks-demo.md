@@ -4,7 +4,7 @@
 
 **Goal:** Add a second, standalone demo scenario to this repo showing a "helm-first" chart hitting two real pitfalls under ArgoCD (a `lookup`-based secret that silently regenerates under `helm template`, and a non-idempotent `post-install` hook Job that ArgoCD re-triggers on every sync), then refactoring the chart to fix both — plus a third mini-demo showing how to mitigate the hooks pitfall for a third-party chart you can't edit, via a Kustomize overlay that rewrites its Helm hook annotations to ArgoCD-native equivalents.
 
-**Architecture:** Three new Helm charts (`chart/adminapp-helmfirst`, `chart/adminapp-gitops`, `chart/vendored-widget`) deployed into a new `adminapp-demo` namespace on the same k3d cluster and AKP instance the guestbook scenario already provisions. The anti-pattern chart is deployed via Flux first (where it works fine), then adopted by an ArgoCD `Application` (where both pitfalls surface), then the Application is repointed at the fixed chart. The vendored chart is deployed straight to ArgoCD via a Kustomize overlay that patches its hook annotations at render time, without editing the chart.
+**Architecture:** Three new Helm charts (`chart/adminapp-helmfirst`, `chart/adminapp-gitops`, `chart/vendored-widget-kustomize/vendored-widget`) deployed into a new `adminapp-demo` namespace on the same k3d cluster and AKP instance the guestbook scenario already provisions. The anti-pattern chart is deployed via Flux first (where it works fine), then adopted by an ArgoCD `Application` (where both pitfalls surface), then the Application is repointed at the fixed chart. The vendored chart is deployed straight to ArgoCD via a Kustomize overlay that patches its hook annotations at render time, without editing the chart.
 
 **Tech Stack:** k3d, Flux, Helm 3.x, ArgoCD (`argocd` CLI), Kustomize v5+ (`--enable-helm`), Terraform (`akuity/akp` provider), SQLite (`keinos/sqlite3:3.46.0` image), go-task, bash, `jq`.
 
@@ -866,26 +866,26 @@ git commit -m "Repoint adminapp at the gitops chart and prove both pitfalls are 
 ### Task 7: Author the vendored chart and its Kustomize annotation-rewrite overlay
 
 **Files:**
-- Create: `chart/vendored-widget/Chart.yaml`
-- Create: `chart/vendored-widget/values.yaml`
-- Create: `chart/vendored-widget/templates/deployment.yaml`
-- Create: `chart/vendored-widget/templates/secret.yaml`
-- Create: `chart/vendored-widget/templates/pvc.yaml`
-- Create: `chart/vendored-widget/templates/job-admin-user.yaml`
-- Create: `cluster/argocd/vendored-widget-kustomize/kustomization.yaml`
+- Create: `chart/vendored-widget-kustomize/vendored-widget/Chart.yaml`
+- Create: `chart/vendored-widget-kustomize/vendored-widget/values.yaml`
+- Create: `chart/vendored-widget-kustomize/vendored-widget/templates/deployment.yaml`
+- Create: `chart/vendored-widget-kustomize/vendored-widget/templates/secret.yaml`
+- Create: `chart/vendored-widget-kustomize/vendored-widget/templates/pvc.yaml`
+- Create: `chart/vendored-widget-kustomize/vendored-widget/templates/job-admin-user.yaml`
+- Create: `chart/vendored-widget-kustomize/kustomization.yaml`
 - Modify: `terraform/01-argocd/main.tf`
 
 **Interfaces:**
 - Consumes: nothing from earlier tasks (a standalone simulated third-party chart).
-- Produces: `chart/vendored-widget` (name `vendored-widget`, version `0.1.0`), deliberately left with the same anti-patterns as Task 2's chart and never fixed. A Kustomize overlay at `cluster/argocd/vendored-widget-kustomize/` that inflates this chart locally (via `helmGlobals.chartHome`) and rewrites its Job's `helm.sh/hook*` annotations to `argocd.argoproj.io/hook*` equivalents. Task 8's Application sources this overlay directly.
+- Produces: `chart/vendored-widget-kustomize/vendored-widget` (name `vendored-widget`, version `0.1.0`), deliberately left with the same anti-patterns as Task 2's chart and never fixed. A Kustomize overlay at `chart/vendored-widget-kustomize/` that inflates this chart locally (via `helmGlobals.chartHome`) and rewrites its Job's `helm.sh/hook*` annotations to `argocd.argoproj.io/hook*` equivalents. Task 8's Application sources this overlay directly.
 
-- [ ] **Step 1: Create `chart/vendored-widget/Chart.yaml`**
+- [ ] **Step 1: Create `chart/vendored-widget-kustomize/vendored-widget/Chart.yaml`**
 
 ```yaml
 # DO NOT EDIT -- this chart simulates a third-party chart pulled from an
 # external Helm repository that we don't control and can't fork. Its
 # lookup-based secret and non-idempotent post-install hook Job are left
-# deliberately broken; see cluster/argocd/vendored-widget-kustomize/ for how
+# deliberately broken; see chart/vendored-widget-kustomize/ for how
 # to work around it without touching this chart's source, and
 # docs/superpowers/specs/2026-08-11-helm-lookup-hooks-demo-design.md for why.
 apiVersion: v2
@@ -896,7 +896,7 @@ version: 0.1.0
 appVersion: "1.0"
 ```
 
-- [ ] **Step 2: Create `chart/vendored-widget/values.yaml`**
+- [ ] **Step 2: Create `chart/vendored-widget-kustomize/vendored-widget/values.yaml`**
 
 ```yaml
 # DO NOT EDIT -- see Chart.yaml.
@@ -910,7 +910,7 @@ sqlite:
     tag: "3.46.0"
 ```
 
-- [ ] **Step 3: Create `chart/vendored-widget/templates/deployment.yaml`**
+- [ ] **Step 3: Create `chart/vendored-widget-kustomize/vendored-widget/templates/deployment.yaml`**
 
 ```yaml
 {{/* DO NOT EDIT -- see Chart.yaml. */}}
@@ -957,7 +957,7 @@ spec:
             claimName: vendored-widget-db
 ```
 
-- [ ] **Step 4: Create `chart/vendored-widget/templates/secret.yaml`**
+- [ ] **Step 4: Create `chart/vendored-widget-kustomize/vendored-widget/templates/secret.yaml`**
 
 ```yaml
 {{/* DO NOT EDIT -- see Chart.yaml. */}}
@@ -977,7 +977,7 @@ data:
   {{- end }}
 ```
 
-- [ ] **Step 5: Create `chart/vendored-widget/templates/pvc.yaml`**
+- [ ] **Step 5: Create `chart/vendored-widget-kustomize/vendored-widget/templates/pvc.yaml`**
 
 ```yaml
 {{/* DO NOT EDIT -- see Chart.yaml. */}}
@@ -995,7 +995,7 @@ spec:
       storage: 64Mi
 ```
 
-- [ ] **Step 6: Create `chart/vendored-widget/templates/job-admin-user.yaml`**
+- [ ] **Step 6: Create `chart/vendored-widget-kustomize/vendored-widget/templates/job-admin-user.yaml`**
 
 ```yaml
 {{/* DO NOT EDIT -- see Chart.yaml. */}}
@@ -1030,18 +1030,26 @@ spec:
             claimName: vendored-widget-db
 ```
 
-- [ ] **Step 7: Create `cluster/argocd/vendored-widget-kustomize/kustomization.yaml`**
+- [ ] **Step 7: Create `chart/vendored-widget-kustomize/kustomization.yaml`**
 
 ```yaml
-# DO NOT EDIT the chart this inflates (chart/vendored-widget) -- this overlay
+# DO NOT EDIT the chart this inflates (chart/vendored-widget-kustomize/vendored-widget) -- this overlay
 # exists specifically so we never have to. See
 # docs/superpowers/specs/2026-08-11-helm-lookup-hooks-demo-design.md for why.
+#
+# chartHome is "." (the vendored-widget/ subdirectory sits right next to this
+# file) rather than a path reaching outside this directory tree -- Kustomize's
+# default load restriction (LoadRestrictionsRootOnly) refuses to load any file
+# outside the directory rooted at this kustomization.yaml, so the vendored
+# chart is nested here rather than referenced from elsewhere in the repo. This
+# also mirrors how real third-party charts usually get vendored in practice
+# (e.g. `helm pull --untar` into a local subdirectory you don't edit).
 helmCharts:
   - name: vendored-widget
     version: 0.1.0
     releaseName: vendored-widget
 helmGlobals:
-  chartHome: ../../../chart
+  chartHome: .
 patches:
   - target:
       kind: Job
@@ -1065,8 +1073,8 @@ patches:
 
 Run (ensure a Helm 3.x binary, not Helm 4.x, resolves first on `PATH` for this command specifically — see Global Constraints):
 ```bash
-helm lint chart/vendored-widget
-kustomize build --enable-helm cluster/argocd/vendored-widget-kustomize
+helm lint chart/vendored-widget-kustomize/vendored-widget
+kustomize build --enable-helm chart/vendored-widget-kustomize
 ```
 Expected: `helm lint` reports `0 chart(s) failed`; the `kustomize build` output contains a `Job` named `vendored-widget-admin-user` whose `annotations` block has `argocd.argoproj.io/hook: PostSync` and `argocd.argoproj.io/hook-delete-policy: HookSucceeded`, and contains **no** `helm.sh/hook*` keys at all.
 
@@ -1103,7 +1111,7 @@ Expected: `Apply complete!` with `argocd_cm` shown as updated in the diff.
 - [ ] **Step 12: Commit**
 
 ```bash
-git add chart/vendored-widget cluster/argocd/vendored-widget-kustomize terraform/01-argocd/main.tf
+git add chart/vendored-widget-kustomize/vendored-widget chart/vendored-widget-kustomize terraform/01-argocd/main.tf
 git commit -m "Add vendored-widget chart and a Kustomize overlay to rewrite its hook annotations"
 ```
 
@@ -1117,7 +1125,7 @@ git commit -m "Add vendored-widget chart and a Kustomize overlay to rewrite its 
 - Modify: `README.md` (add the fourth "Bonus scenario" subsection)
 
 **Interfaces:**
-- Consumes: `chart/vendored-widget` and the Kustomize overlay from Task 7; the `kustomize.buildOptions` change applied to the live AKP instance in Task 7.
+- Consumes: `chart/vendored-widget-kustomize/vendored-widget` and the Kustomize overlay from Task 7; the `kustomize.buildOptions` change applied to the live AKP instance in Task 7.
 - Produces: an ArgoCD `Application` named `vendored-widget`, sourced from the Kustomize overlay directory instead of the chart directly. Task 9's cleanup deletes this Application.
 
 - [ ] **Step 1: Create `cluster/argocd/vendored-widget-app.yaml`**
@@ -1133,7 +1141,7 @@ spec:
   source:
     repoURL: https://github.com/adamancini/flux-to-argo
     targetRevision: main
-    path: cluster/argocd/vendored-widget-kustomize
+    path: chart/vendored-widget-kustomize
   destination:
     name: flux-to-argo
     namespace: adminapp-demo
@@ -1156,7 +1164,7 @@ section() {
 }
 
 section "STEP 1: Render the vendored chart's raw hook annotations (untouched)"
-helm template chart/vendored-widget | grep -B4 'kind: Job' | grep -E 'helm\.sh/hook|name: vendored-widget-admin-user' || true
+helm template chart/vendored-widget-kustomize/vendored-widget | grep -B4 'kind: Job' | grep -E 'helm\.sh/hook|name: vendored-widget-admin-user' || true
 
 section "STEP 2: Create and sync the ArgoCD Application (sourced via the Kustomize overlay)"
 argocd app create -f cluster/argocd/vendored-widget-app.yaml --upsert
@@ -1170,7 +1178,7 @@ argocd app manifests vendored-widget | grep -B4 'kind: Job' | grep -E 'argocd\.a
 section "AFTER: annotation rewrite confirmed"
 echo "The raw chart (Step 1) still carries helm.sh/hook* annotations -- it was never edited."
 echo "The manifest ArgoCD actually applied (Step 3) carries argocd.argoproj.io/hook* instead,"
-echo "rewritten by cluster/argocd/vendored-widget-kustomize/kustomization.yaml at render time."
+echo "rewritten by chart/vendored-widget-kustomize/kustomization.yaml at render time."
 ```
 
 - [ ] **Step 3: Make the script executable**
@@ -1185,7 +1193,7 @@ Confirm with the user before running.
 
 Run: `./scripts/adminapp-vendored.sh`
 
-Expected: Step 1's output shows `helm.sh/hook` annotations on `vendored-widget-admin-user`; Step 3's output shows `argocd.argoproj.io/hook` annotations on the same Job name instead, with no `helm.sh/hook` present — proving the rewrite happened at render time without editing `chart/vendored-widget`. If Step 2 fails because the AKP repo-server rejects the `helmCharts:` block, re-check Task 7 Step 11 actually applied, and fall back per the design spec's "Known risk" (check in the patched manifest as a plain YAML source) if the hosted repo-server's Kustomize/Helm versions don't support this combination.
+Expected: Step 1's output shows `helm.sh/hook` annotations on `vendored-widget-admin-user`; Step 3's output shows `argocd.argoproj.io/hook` annotations on the same Job name instead, with no `helm.sh/hook` present — proving the rewrite happened at render time without editing `chart/vendored-widget-kustomize/vendored-widget`. If Step 2 fails because the AKP repo-server rejects the `helmCharts:` block, re-check Task 7 Step 11 actually applied, and fall back per the design spec's "Known risk" (check in the patched manifest as a plain YAML source) if the hosted repo-server's Kustomize/Helm versions don't support this combination.
 
 - [ ] **Step 5: Add the fourth "Bonus scenario" subsection to `README.md`**
 
@@ -1196,9 +1204,9 @@ Append after the "### 3. Refactor and repoint at the fixed chart" subsection add
 
     task adminapp:vendored
 
-`chart/vendored-widget` simulates a chart you pulled from someone else's Helm
+`chart/vendored-widget-kustomize/vendored-widget` simulates a chart you pulled from someone else's Helm
 repo — same lookup/hooks anti-patterns, but off-limits to edit or fork.
-`cluster/argocd/vendored-widget-kustomize/` inflates it with Kustomize's
+`chart/vendored-widget-kustomize/` inflates it with Kustomize's
 `helmCharts` generator and patches its Job's `helm.sh/hook*` annotations to
 `argocd.argoproj.io/hook*` equivalents at render time (needs
 `kustomize.buildOptions: --enable-helm` on the AKP instance — see
