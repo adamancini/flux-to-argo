@@ -7,10 +7,23 @@ helmCharts:
     releaseName: vendored-widget
 helmGlobals:
   chartHome: .
+# Dropping helm.sh/hook-weight ("0") with no argocd.argoproj.io/sync-wave
+# replacement is deliberate, not an oversight: weight "0" is ArgoCD's default
+# sync-wave (0) anyway, so omitting an explicit annotation here loses nothing.
 patches:
   - target:
       kind: Job
       name: vendored-widget-admin-user
+    # Mapping to Sync (not PostSync) is deliberate: Sync is the one ArgoCD
+    # hook phase with no Helm-hook-annotation fallback equivalent. ArgoCD's
+    # hook detection (gitops-engine's hook.Types()) checks
+    # argocd.argoproj.io/hook first, but falls back to interpreting
+    # helm.sh/hook directly whenever that native annotation is absent -- and
+    # Helm's hook types have no analog to a plain Sync phase (only
+    # PreSync/PostSync/etc.). Mapping to PostSync here would be
+    # indistinguishable from ArgoCD's own automatic post-install fallback, so
+    # it would prove nothing about whether this overlay's rewrite actually
+    # ran. Sync is the only choice that makes the rewrite's effect observable.
     patch: |-
       - op: remove
         path: /metadata/annotations/helm.sh~1hook
@@ -20,7 +33,7 @@ patches:
         path: /metadata/annotations/helm.sh~1hook-delete-policy
       - op: add
         path: /metadata/annotations/argocd.argoproj.io~1hook
-        value: PostSync
+        value: Sync
       - op: add
         path: /metadata/annotations/argocd.argoproj.io~1hook-delete-policy
         value: HookSucceeded

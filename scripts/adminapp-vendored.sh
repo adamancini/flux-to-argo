@@ -13,19 +13,28 @@ helm template chart/vendored-widget-kustomize/vendored-widget | grep -A10 'kind:
 
 section "STEP 2: Create and sync the ArgoCD Application (sourced via the Kustomize overlay)"
 argocd app create -f cluster/argocd/vendored-widget-app.yaml --upsert
+# expected to fail on re-run -- the vendored chart's INSERT isn't idempotent,
+# and this demo intentionally never fixes that
 argocd app sync vendored-widget || true
 argocd app wait vendored-widget --health --timeout 120 || true
 
-section "STEP 3: Compare what ArgoCD actually applied against the raw chart"
+section "STEP 3: Read ArgoCD's own hook-recognition record from the sync result"
 echo "ArgoCD's sync result for the Job (from its own hook engine's record, not the live object --"
-echo "the Job is auto-deleted by hook-delete-policy: HookSucceeded once it completes):"
+echo "the Job is auto-deleted by hook-delete-policy: HookSucceeded once it completes). This is NOT"
+echo "a diff of applied manifests -- 'argocd app manifests' structurally excludes hook resources,"
+echo "so the sync-result API is the only place this is observable:"
 argocd app get vendored-widget -o json | jq -r '.status.operationState.syncResult.resources[] | select(.kind=="Job") | "kind=\(.kind) name=\(.name) hookType=\(.hookType) hookPhase=\(.hookPhase) message=\(.message)"'
 
 section "AFTER: annotation rewrite confirmed"
 echo "The raw chart (Step 1) still carries helm.sh/hook* annotations -- it was never edited."
-echo "The manifest ArgoCD actually applied (Step 3) shows hookType=PostSync instead of a Helm hook --"
-echo "rewritten by chart/vendored-widget-kustomize/kustomization.yaml at render time."
-echo "hookType is populated exclusively from ArgoCD's own argocd.argoproj.io/hook annotation"
-echo "recognition -- it can never show a value unless the Kustomize overlay's JSON-patch rewrite"
-echo "(removing helm.sh/hook*, adding argocd.argoproj.io/hook: PostSync) was actually applied at"
-echo "render time, since ArgoCD never interprets helm.sh/hook as a hook trigger at all."
+echo "The sync result above (Step 3) shows hookType=Sync instead of a Helm hook -- rewritten by"
+echo "chart/vendored-widget-kustomize/kustomization.yaml at render time."
+echo "hookType=Sync specifically is what proves this: ArgoCD's hook detection checks its own"
+echo "argocd.argoproj.io/hook annotation first, but falls back to interpreting helm.sh/hook"
+echo "directly whenever that native annotation is absent -- and that fallback applies to any"
+echo "rendered manifest regardless of source generator. An unpatched chart's"
+echo "helm.sh/hook: post-install would still be recognized via that fallback as a PostSync hook"
+echo "(chart/adminapp-helmfirst showed exactly this under ArgoCD with no overlay at all). Mapping"
+echo "to PostSync here would therefore have been ambiguous -- indistinguishable from ArgoCD just"
+echo "falling back to the untouched helm.sh/hook annotation. Sync has no Helm-hook equivalent, so"
+echo "seeing hookType=Sync is what actually proves the overlay's rewrite took effect at render time."
