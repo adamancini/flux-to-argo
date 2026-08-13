@@ -6,7 +6,7 @@ helmCharts:
     version: 0.1.0
     releaseName: vendored-widget
 helmGlobals:
-  chartHome: ../../../chart
+  chartHome: .
 patches:
   - target:
       kind: Job
