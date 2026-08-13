@@ -1,7 +1,7 @@
 # DO NOT EDIT -- this chart simulates a third-party chart pulled from an
 # external Helm repository that we don't control and can't fork. Its
 # lookup-based secret and non-idempotent post-install hook Job are left
-# deliberately broken; see cluster/argocd/vendored-widget-kustomize/ for how
+# deliberately broken; see chart/vendored-widget-kustomize/ for how
 # to work around it without touching this chart's source, and
 # docs/superpowers/specs/2026-08-11-helm-lookup-hooks-demo-design.md for why.
 apiVersion: v2
